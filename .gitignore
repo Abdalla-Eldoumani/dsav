@@ -1,0 +1,16 @@
+# Build artifacts
+*.o
+*.s
+*.out
+dsav-assembly/dsav
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
