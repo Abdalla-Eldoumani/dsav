@@ -1,7 +1,7 @@
 # ARMv8 Assembly DSAV - Data Structures & Algorithms Visualizer
 # Build System using m4 preprocessor and gcc
 
-CC = gcarm 						# I have my own binary for executing arm assembly files in an x86 environment, if you have an arm chip use gcc.
+CC = gcarm 						# I have my own binary for compiling arm assembly files in an x86 environment, if you have an arm chip use gcc.
 M4 = m4
 CFLAGS = -g -no-pie
 SOURCES = main.asm ansi.asm display.asm array_viz.asm stack_viz.asm \
