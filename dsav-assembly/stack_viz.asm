@@ -752,3 +752,44 @@ stack_clear:
 
     ldp     x29, x30, [sp], 16
     ret
+
+// ============================================================================
+// C++ INTERFACE FUNCTIONS (for asm-linked version)
+// These functions expose internal state for visualization
+// ============================================================================
+
+// ============================================================================
+// FUNCTION: stack_get_data
+// Get pointer to internal stack array (for C++ visualization)
+// Parameters: none
+// Returns: x0 = pointer to stack_data array
+// ============================================================================
+    .global stack_get_data
+stack_get_data:
+    adrp    x0, stack_data
+    add     x0, x0, :lo12:stack_data
+    ret
+
+// ============================================================================
+// FUNCTION: stack_get_top
+// Get current top index (for C++ visualization)
+// Parameters: none
+// Returns: w0 = top index (-1 if empty)
+// ============================================================================
+    .global stack_get_top
+stack_get_top:
+    adrp    x0, stack_top
+    add     x0, x0, :lo12:stack_top
+    ldr     w0, [x0]
+    ret
+
+// ============================================================================
+// FUNCTION: stack_get_capacity
+// Get stack capacity (for C++ visualization)
+// Parameters: none
+// Returns: w0 = maximum capacity
+// ============================================================================
+    .global stack_get_capacity
+stack_get_capacity:
+    mov     w0, stack_max_size
+    ret
