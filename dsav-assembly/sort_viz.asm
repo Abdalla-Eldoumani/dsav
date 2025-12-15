@@ -5,6 +5,8 @@
 //   - Bubble Sort
 //   - Selection Sort
 //   - Insertion Sort
+//   - Merge Sort
+//   - Quick Sort
 // ============================================================================
 
 include(`macros.m4')
@@ -16,6 +18,7 @@ include(`macros.m4')
 // Sorting visualization state
 // ----------------------------------------------------------------------------
 sort_array:         .skip 40                // Temporary array for sorting (10 elements)
+sort_aux_array:     .skip 40                // Auxiliary array for merge sort
 sort_size:          .word 0                 // Current array size
 sort_delay:         .word 200               // Animation delay in ms
 
@@ -23,6 +26,11 @@ sort_delay:         .word 200               // Animation delay in ms
 highlight_idx1:     .word -1                // First highlighted index
 highlight_idx2:     .word -1                // Second highlighted index
 sorted_up_to:       .word -1                // Elements up to this index are sorted
+
+// For merge sort and quick sort
+merge_left:         .word -1                // Left bound of current merge/partition
+merge_right:        .word -1                // Right bound of current merge/partition
+merge_mid:          .word -1                // Middle point for merge
 
 // ----------------------------------------------------------------------------
 // UI Strings
@@ -33,7 +41,9 @@ sort_menu_title:    .string "SORTING ALGORITHMS MENU"
 menu_opt_1:         .string "[1] Bubble Sort"
 menu_opt_2:         .string "[2] Selection Sort"
 menu_opt_3:         .string "[3] Insertion Sort"
-menu_opt_4:         .string "[4] Initialize Random Array"
+menu_opt_4:         .string "[4] Merge Sort"
+menu_opt_5:         .string "[5] Quick Sort"
+menu_opt_6:         .string "[6] Initialize Random Array"
 menu_opt_0:         .string "[0] Back to Main Menu"
 
 menu_prompt:        .string "Enter your choice: "
@@ -71,7 +81,7 @@ sort_menu_loop:
 
     // Get user choice
     mov     w0, 0                            // min
-    mov     w1, 4                            // max
+    mov     w1, 6                            // max
     bl      read_int_range
 
     // Dispatch based on choice
@@ -88,6 +98,12 @@ sort_menu_loop:
     b.eq    sort_menu_insertion
 
     cmp     w0, 4
+    b.eq    sort_menu_merge
+
+    cmp     w0, 5
+    b.eq    sort_menu_quick
+
+    cmp     w0, 6
     b.eq    sort_menu_initialize
 
     b       sort_menu_loop
@@ -104,6 +120,16 @@ sort_menu_selection:
 
 sort_menu_insertion:
     bl      sort_insertion_interactive
+    bl      wait_for_enter
+    b       sort_menu_loop
+
+sort_menu_merge:
+    bl      sort_merge_interactive
+    bl      wait_for_enter
+    b       sort_menu_loop
+
+sort_menu_quick:
+    bl      sort_quick_interactive
     bl      wait_for_enter
     b       sort_menu_loop
 
@@ -131,7 +157,7 @@ display_sort_menu:
     mov     w0, 3                            // row
     mov     w1, 15                           // column
     mov     w2, 50                           // width
-    mov     w3, 13                           // height
+    mov     w3, 15                           // height (increased for more options)
     mov     w4, 1                            // double-line style
     bl      draw_box
 
@@ -183,19 +209,33 @@ display_sort_menu:
     mov     w0, 11
     mov     w1, 20
     bl      ansi_move_cursor
+    adrp    x0, menu_opt_5
+    add     x0, x0, :lo12:menu_opt_5
+    bl      printf
+
+    mov     w0, 12
+    mov     w1, 20
+    bl      ansi_move_cursor
+    adrp    x0, menu_opt_6
+    add     x0, x0, :lo12:menu_opt_6
+    bl      printf
+
+    mov     w0, 13
+    mov     w1, 20
+    bl      ansi_move_cursor
     adrp    x0, menu_opt_0
     add     x0, x0, :lo12:menu_opt_0
     bl      printf
 
     // Print separator
-    mov     w0, 13
+    mov     w0, 15
     mov     w1, 15
     mov     w2, 50
     mov     w3, 1
     bl      draw_horizontal_border_top
 
     // Position cursor for input
-    mov     w0, 14
+    mov     w0, 16
     mov     w1, 20
     bl      ansi_move_cursor
     adrp    x0, menu_prompt
@@ -900,5 +940,497 @@ sort_reset_highlights:
     add     x1, x1, :lo12:sorted_up_to
     str     w0, [x1]
 
+    adrp    x1, merge_left
+    add     x1, x1, :lo12:merge_left
+    str     w0, [x1]
+
+    adrp    x1, merge_right
+    add     x1, x1, :lo12:merge_right
+    str     w0, [x1]
+
+    adrp    x1, merge_mid
+    add     x1, x1, :lo12:merge_mid
+    str     w0, [x1]
+
     ldp     x29, x30, [sp], 16
+    ret
+
+// ============================================================================
+// FUNCTION: sort_merge_interactive
+// Interactive merge sort with visualization
+// ============================================================================
+    .global sort_merge_interactive
+sort_merge_interactive:
+    stp     x29, x30, [sp, -16]!
+    mov     x29, sp
+
+    // Check if array is initialized
+    adrp    x0, sort_size
+    add     x0, x0, :lo12:sort_size
+    ldr     w0, [x0]
+    cmp     w0, 0
+    b.le    merge_empty
+
+    // Clear screen and display array
+    bl      ansi_clear_screen
+    bl      sort_reset_highlights
+    bl      sort_display_array
+
+    // Position cursor for message
+    mov     w0, 22
+    mov     w1, 1
+    bl      ansi_move_cursor
+
+    adrp    x0, prompt_continue
+    add     x0, x0, :lo12:prompt_continue
+    bl      printf
+
+    bl      wait_for_enter
+
+    // Perform merge sort
+    bl      sort_merge_sort
+
+    // Display final sorted array
+    bl      sort_reset_highlights
+    adrp    x0, sort_size
+    add     x0, x0, :lo12:sort_size
+    ldr     w0, [x0]
+    sub     w0, w0, 1
+    adrp    x1, sorted_up_to
+    add     x1, x1, :lo12:sorted_up_to
+    str     w0, [x1]
+    bl      sort_display_array
+
+    // Position cursor for message
+    mov     w0, 22
+    mov     w1, 1
+    bl      ansi_move_cursor
+
+    adrp    x0, msg_sorted
+    add     x0, x0, :lo12:msg_sorted
+    bl      printf
+    bl      print_newline
+
+    b       merge_done
+
+merge_empty:
+    bl      ansi_clear_screen
+    mov     w0, 22
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, msg_empty
+    add     x0, x0, :lo12:msg_empty
+    bl      printf
+    bl      print_newline
+
+merge_done:
+    ldp     x29, x30, [sp], 16
+    ret
+
+// ============================================================================
+// FUNCTION: sort_merge_sort
+// Bottom-up iterative merge sort
+// ============================================================================
+sort_merge_sort:
+    stp     x29, x30, [sp, -64]!
+    mov     x29, sp
+    stp     x19, x20, [sp, 16]
+    stp     x21, x22, [sp, 32]
+    stp     x23, x24, [sp, 48]
+
+    // Load array size
+    adrp    x0, sort_size
+    add     x0, x0, :lo12:sort_size
+    ldr     w19, [x0]                    // w19 = size
+
+    // Load array pointer
+    adrp    x22, sort_array              // x22 = array_ptr
+    add     x22, x22, :lo12:sort_array
+
+    // Start with merge size of 1, double each iteration
+    mov     w20, 1                       // w20 = curr_size
+
+merge_outer_loop:
+    cmp     w20, w19
+    b.ge    merge_sort_done
+
+    // Start from leftmost subarray
+    mov     w21, 0                       // w21 = left_start
+
+merge_inner_loop:
+    cmp     w21, w19
+    b.ge    merge_next_size
+
+    // Calculate mid and right_end
+    add     w23, w21, w20                // w23 = mid
+    sub     w23, w23, 1
+
+    // Calculate right_end = min(left_start + 2*curr_size - 1, size - 1)
+    lsl     w0, w20, 1
+    add     w24, w21, w0                 // w24 = right_end
+    sub     w24, w24, 1
+    sub     w0, w19, 1
+    cmp     w24, w0
+    csel    w24, w24, w0, lt
+
+    // Only merge if mid < right_end
+    cmp     w23, w24
+    b.ge    merge_skip
+
+    // Set merge bounds for visualization
+    adrp    x0, merge_left
+    add     x0, x0, :lo12:merge_left
+    str     w21, [x0]
+
+    adrp    x0, merge_right
+    add     x0, x0, :lo12:merge_right
+    str     w24, [x0]
+
+    adrp    x0, merge_mid
+    add     x0, x0, :lo12:merge_mid
+    str     w23, [x0]
+
+    // Perform merge
+    mov     w0, w21
+    mov     w1, w23
+    mov     w2, w24
+    bl      sort_merge_arrays
+
+    // Display after merge
+    bl      sort_display_array
+
+    // Delay for animation
+    adrp    x0, sort_delay
+    add     x0, x0, :lo12:sort_delay
+    ldr     w0, [x0]
+    bl      delay_ms
+
+merge_skip:
+    // Move to next pair of subarrays
+    lsl     w0, w20, 1
+    add     w21, w21, w0
+    b       merge_inner_loop
+
+merge_next_size:
+    // Double the merge size
+    lsl     w20, w20, 1
+    b       merge_outer_loop
+
+merge_sort_done:
+    ldp     x23, x24, [sp, 48]
+    ldp     x21, x22, [sp, 32]
+    ldp     x19, x20, [sp, 16]
+    ldp     x29, x30, [sp], 64
+    ret
+
+// ============================================================================
+// FUNCTION: sort_merge_arrays
+// Merge two sorted subarrays
+// Parameters: w0 = left, w1 = mid, w2 = right
+// ============================================================================
+sort_merge_arrays:
+    stp     x29, x30, [sp, -80]!
+    mov     x29, sp
+    stp     x19, x20, [sp, 16]
+    stp     x21, x22, [sp, 32]
+    stp     x23, x24, [sp, 48]
+    stp     x25, x26, [sp, 64]
+
+    mov     w19, w0                      // w19 = left
+    mov     w20, w1                      // w20 = mid
+    mov     w21, w2                      // w21 = right
+
+    // Load array pointers
+    adrp    x25, sort_array              // x25 = array_ptr
+    add     x25, x25, :lo12:sort_array
+
+    adrp    x26, sort_aux_array          // x26 = aux_ptr
+    add     x26, x26, :lo12:sort_aux_array
+
+    // Copy to auxiliary array
+    mov     w22, w19                     // w22 = i = left
+merge_copy_loop:
+    cmp     w22, w21                     // Compare i with right
+    b.gt    merge_copy_done
+    ldr     w0, [x25, w22, SXTW 2]       // Load array[i]
+    str     w0, [x26, w22, SXTW 2]       // Store to aux[i]
+    add     w22, w22, 1                  // i++
+    b       merge_copy_loop
+
+merge_copy_done:
+    // Merge back to original array
+    mov     w22, w19                     // w22 = i = left (left subarray index)
+    add     w23, w20, 1                  // w23 = j = mid + 1 (right subarray index)
+    mov     w24, w19                     // w24 = k = left (merged array index)
+
+merge_compare_loop:
+    cmp     w22, w20                     // Compare i with mid
+    b.gt    merge_copy_right
+    cmp     w23, w21                     // Compare j with right
+    b.gt    merge_copy_left
+
+    // Compare aux[i] and aux[j]
+    ldr     w0, [x26, w22, SXTW 2]       // Load aux[i]
+    ldr     w1, [x26, w23, SXTW 2]       // Load aux[j]
+    cmp     w0, w1
+    b.le    merge_take_left
+
+merge_take_right:
+    str     w1, [x25, w24, SXTW 2]       // Store aux[j] to array[k]
+    add     w23, w23, 1                  // j++
+    add     w24, w24, 1                  // k++
+    b       merge_compare_loop
+
+merge_take_left:
+    str     w0, [x25, w24, SXTW 2]       // Store aux[i] to array[k]
+    add     w22, w22, 1                  // i++
+    add     w24, w24, 1                  // k++
+    b       merge_compare_loop
+
+merge_copy_left:
+    cmp     w22, w20                     // Compare i with mid
+    b.gt    merge_complete
+    ldr     w0, [x26, w22, SXTW 2]       // Load aux[i]
+    str     w0, [x25, w24, SXTW 2]       // Store to array[k]
+    add     w22, w22, 1                  // i++
+    add     w24, w24, 1                  // k++
+    b       merge_copy_left
+
+merge_copy_right:
+    cmp     w23, w21                     // Compare j with right
+    b.gt    merge_complete
+    ldr     w0, [x26, w23, SXTW 2]       // Load aux[j]
+    str     w0, [x25, w24, SXTW 2]       // Store to array[k]
+    add     w23, w23, 1                  // j++
+    add     w24, w24, 1                  // k++
+    b       merge_copy_right
+
+merge_complete:
+    ldp     x25, x26, [sp, 64]
+    ldp     x23, x24, [sp, 48]
+    ldp     x21, x22, [sp, 32]
+    ldp     x19, x20, [sp, 16]
+    ldp     x29, x30, [sp], 80
+    ret
+
+// ============================================================================
+// FUNCTION: sort_quick_interactive
+// Interactive quick sort with visualization
+// ============================================================================
+    .global sort_quick_interactive
+sort_quick_interactive:
+    stp     x29, x30, [sp, -16]!
+    mov     x29, sp
+
+    // Check if array is initialized
+    adrp    x0, sort_size
+    add     x0, x0, :lo12:sort_size
+    ldr     w0, [x0]
+    cmp     w0, 0
+    b.le    quick_empty
+
+    // Clear screen and display array
+    bl      ansi_clear_screen
+    bl      sort_reset_highlights
+    bl      sort_display_array
+
+    // Position cursor for message
+    mov     w0, 22
+    mov     w1, 1
+    bl      ansi_move_cursor
+
+    adrp    x0, prompt_continue
+    add     x0, x0, :lo12:prompt_continue
+    bl      printf
+
+    bl      wait_for_enter
+
+    // Perform quick sort
+    mov     w0, 0
+    adrp    x1, sort_size
+    add     x1, x1, :lo12:sort_size
+    ldr     w1, [x1]
+    sub     w1, w1, 1
+    bl      sort_quick_sort
+
+    // Display final sorted array
+    bl      sort_reset_highlights
+    adrp    x0, sort_size
+    add     x0, x0, :lo12:sort_size
+    ldr     w0, [x0]
+    sub     w0, w0, 1
+    adrp    x1, sorted_up_to
+    add     x1, x1, :lo12:sorted_up_to
+    str     w0, [x1]
+    bl      sort_display_array
+
+    // Position cursor for message
+    mov     w0, 22
+    mov     w1, 1
+    bl      ansi_move_cursor
+
+    adrp    x0, msg_sorted
+    add     x0, x0, :lo12:msg_sorted
+    bl      printf
+    bl      print_newline
+
+    b       quick_done
+
+quick_empty:
+    bl      ansi_clear_screen
+    mov     w0, 22
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, msg_empty
+    add     x0, x0, :lo12:msg_empty
+    bl      printf
+    bl      print_newline
+
+quick_done:
+    ldp     x29, x30, [sp], 16
+    ret
+
+// ============================================================================
+// FUNCTION: sort_quick_sort
+// Recursive quick sort
+// Parameters: w0 = low, w1 = high
+// ============================================================================
+sort_quick_sort:
+    stp     x29, x30, [sp, -48]!
+    mov     x29, sp
+    stp     x19, x20, [sp, 16]
+    str     x21, [sp, 32]
+
+    mov     w19, w0                      // w19 = low
+    mov     w20, w1                      // w20 = high
+
+    // Base case: if low >= high, return
+    cmp     w19, w20                     // Compare low with high
+    b.ge    quick_sort_done
+
+    // Partition array and get pivot index
+    mov     w0, w19                      // Pass low
+    mov     w1, w20                      // Pass high
+    bl      sort_quick_partition
+    mov     w21, w0                      // w21 = pivot index
+
+    // Recursively sort left partition
+    mov     w0, w19                      // Pass low
+    sub     w1, w21, 1                   // Pass pivot - 1
+    bl      sort_quick_sort
+
+    // Recursively sort right partition
+    add     w0, w21, 1                   // Pass pivot + 1
+    mov     w1, w20                      // Pass high
+    bl      sort_quick_sort
+
+quick_sort_done:
+    ldr     x21, [sp, 32]
+    ldp     x19, x20, [sp, 16]
+    ldp     x29, x30, [sp], 48
+    ret
+
+// ============================================================================
+// FUNCTION: sort_quick_partition
+// Partition array for quick sort (last element as pivot)
+// Parameters: w0 = low, w1 = high
+// Returns: w0 = pivot index
+// ============================================================================
+sort_quick_partition:
+    stp     x29, x30, [sp, -64]!
+    mov     x29, sp
+    stp     x19, x20, [sp, 16]
+    stp     x21, x22, [sp, 32]
+    str     x23, [sp, 48]
+    str     x24, [sp, 56]
+
+    mov     w19, w0                      // w19 = low
+    mov     w20, w1                      // w20 = high
+
+    // Load array pointer
+    adrp    x24, sort_array              // x24 = array_ptr
+    add     x24, x24, :lo12:sort_array
+
+    // Choose last element as pivot
+    ldr     w21, [x24, w20, SXTW 2]      // w21 = pivot_val = array[high]
+
+    // Highlight pivot
+    adrp    x0, highlight_idx1
+    add     x0, x0, :lo12:highlight_idx1
+    str     w20, [x0]                    // Store high as highlight
+
+    // Display with pivot highlighted
+    bl      sort_display_array
+
+    // i = low - 1
+    sub     w22, w19, 1                  // w22 = i = low - 1
+
+    // j starts from low
+    mov     w23, w19                     // w23 = j = low
+
+partition_loop:
+    cmp     w23, w20                     // Compare j with high
+    b.ge    partition_done
+
+    // Highlight current element
+    adrp    x0, highlight_idx2
+    add     x0, x0, :lo12:highlight_idx2
+    str     w23, [x0]                    // Store j as highlight
+
+    // Compare arr[j] with pivot
+    ldr     w0, [x24, w23, SXTW 2]       // Load array[j]
+    cmp     w0, w21                      // Compare with pivot_val
+    b.gt    partition_no_swap
+
+    // Increment i
+    add     w22, w22, 1                  // i++
+
+    // Swap arr[i] and arr[j]
+    ldr     w0, [x24, w22, SXTW 2]       // Load array[i]
+    ldr     w1, [x24, w23, SXTW 2]       // Load array[j]
+    str     w1, [x24, w22, SXTW 2]       // Store array[j] to array[i]
+    str     w0, [x24, w23, SXTW 2]       // Store array[i] to array[j]
+
+    // Display after swap
+    bl      sort_display_array
+
+    // Delay
+    adrp    x0, sort_delay
+    add     x0, x0, :lo12:sort_delay
+    ldr     w0, [x0]
+    bl      delay_ms
+
+partition_no_swap:
+    add     w23, w23, 1                  // j++
+    b       partition_loop
+
+partition_done:
+    // Swap arr[i+1] with arr[high] (pivot)
+    add     w22, w22, 1                  // i++
+    ldr     w0, [x24, w22, SXTW 2]       // Load array[i]
+    ldr     w1, [x24, w20, SXTW 2]       // Load array[high]
+    str     w1, [x24, w22, SXTW 2]       // Store array[high] to array[i]
+    str     w0, [x24, w20, SXTW 2]       // Store array[i] to array[high]
+
+    // Display final pivot position
+    adrp    x0, highlight_idx2
+    add     x0, x0, :lo12:highlight_idx2
+    mov     w1, -1
+    str     w1, [x0]
+    bl      sort_display_array
+
+    // Delay
+    adrp    x0, sort_delay
+    add     x0, x0, :lo12:sort_delay
+    ldr     w0, [x0]
+    bl      delay_ms
+
+    // Return pivot index
+    mov     w0, w22                      // Return i
+
+    ldr     x24, [sp, 56]
+    ldr     x23, [sp, 48]
+    ldp     x21, x22, [sp, 32]
+    ldp     x19, x20, [sp, 16]
+    ldp     x29, x30, [sp], 64
     ret
