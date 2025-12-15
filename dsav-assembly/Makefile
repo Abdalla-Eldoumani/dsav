@@ -4,8 +4,7 @@
 CC = gcarm 						# I have my own binary for compiling arm assembly files in an x86 environment, if you have an arm chip use gcc.
 M4 = m4
 CFLAGS = -g -no-pie
-SOURCES = main.asm ansi.asm display.asm array_viz.asm stack_viz.asm \
-          queue_viz.asm linkedlist_viz.asm sort_viz.asm search_viz.asm utils.asm
+SOURCES = main.asm ansi.asm display.asm array_viz.asm stack_viz.asm queue_viz.asm linkedlist_viz.asm bst_viz.asm sort_viz.asm search_viz.asm utils.asm
 PREPROCESSED = $(SOURCES:.asm=.s)
 OBJECTS = $(SOURCES:.asm=.o)
 TARGET = dsav
