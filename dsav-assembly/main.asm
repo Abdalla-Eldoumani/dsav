@@ -20,12 +20,13 @@ menu_option_1:  .string "[1] Array Operations"
 menu_option_2:  .string "[2] Stack Operations"
 menu_option_3:  .string "[3] Queue Operations"
 menu_option_4:  .string "[4] Linked List Operations"
-menu_option_5:  .string "[5] Sorting Algorithms"
-menu_option_6:  .string "[6] Search Algorithms"
+menu_option_5:  .string "[5] Binary Search Tree"
+menu_option_6:  .string "[6] Sorting Algorithms"
+menu_option_7:  .string "[7] Search Algorithms"
 menu_option_0:  .string "[0] Exit"
 
-menu_prompt:    .string "Enter your choice (0-6): "
-invalid_choice: .string "\x1b[31mInvalid choice! Please select 0-6.\x1b[0m"
+menu_prompt:    .string "Enter your choice (0-7): "
+invalid_choice: .string "\x1b[31mInvalid choice! Please select 0-7.\x1b[0m"
 goodbye_msg:    .string "\n\x1b[32mThank you for using DSAV! Goodbye.\x1b[0m\n"
 test_msg:       .string "\x1b[33m[This feature is not yet implemented]\x1b[0m\n"
 
@@ -59,7 +60,7 @@ main_loop:
     bl      printf
 
     mov     w0, 0                            // min value
-    mov     w1, 6                            // max value
+    mov     w1, 7                            // max value
     bl      read_int_range                  // Returns validated choice in w0
 
     // Dispatch to appropriate handler
@@ -79,9 +80,12 @@ main_loop:
     b.eq    handle_linkedlist_menu
 
     cmp     w0, 5
-    b.eq    handle_sort_menu
+    b.eq    handle_bst_menu
 
     cmp     w0, 6
+    b.eq    handle_sort_menu
+
+    cmp     w0, 7
     b.eq    handle_search_menu
 
     // Should never reach here due to read_int_range validation
@@ -104,6 +108,11 @@ handle_queue_menu:
 
 handle_linkedlist_menu:
     bl      linkedlist_menu
+    bl      wait_for_enter
+    b       main_loop
+
+handle_bst_menu:
+    bl      bst_menu
     bl      wait_for_enter
     b       main_loop
 
@@ -152,7 +161,7 @@ display_main_menu:
     mov     w0, 3                            // row
     mov     w1, 15                           // column
     mov     w2, 54                           // width
-    mov     w3, 18                           // height
+    mov     w3, 19                           // height (increased for new option)
     mov     w4, 1                            // style (1 = double line)
     bl      draw_box
 
@@ -227,19 +236,26 @@ display_main_menu:
     mov     w0, 15
     mov     w1, 20
     bl      ansi_move_cursor
+    adrp    x0, menu_option_7
+    add     x0, x0, :lo12:menu_option_7
+    bl      printf
+
+    mov     w0, 16
+    mov     w1, 20
+    bl      ansi_move_cursor
     adrp    x0, menu_option_0
     add     x0, x0, :lo12:menu_option_0
     bl      printf
 
     // Draw another separator
-    mov     w0, 17                           // row
+    mov     w0, 18                           // row (adjusted for new option)
     mov     w1, 15                           // column
     mov     w2, 54                           // width
     mov     w3, 1                            // style
     bl      draw_horizontal_border_top
 
     // Position cursor for input prompt
-    mov     w0, 19                           // row
+    mov     w0, 20                           // row (adjusted)
     mov     w1, 18                           // column
     bl      ansi_move_cursor
 
