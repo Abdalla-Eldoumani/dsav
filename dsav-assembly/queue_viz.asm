@@ -854,3 +854,70 @@ queue_clear:
 
     ldp     x29, x30, [sp], 16
     ret
+
+// ============================================================================
+// C++ INTERFACE FUNCTIONS (for asm-linked version)
+// These functions expose internal state for visualization
+// ============================================================================
+
+// ============================================================================
+// FUNCTION: queue_get_data
+// Get pointer to internal queue array (for C++ visualization)
+// Parameters: none
+// Returns: x0 = pointer to queue_data array
+// ============================================================================
+    .global queue_get_data
+queue_get_data:
+    adrp    x0, queue_data
+    add     x0, x0, :lo12:queue_data
+    ret
+
+// ============================================================================
+// FUNCTION: queue_get_front
+// Get current front index (for C++ visualization)
+// Parameters: none
+// Returns: w0 = front index
+// ============================================================================
+    .global queue_get_front
+queue_get_front:
+    adrp    x0, queue_front
+    add     x0, x0, :lo12:queue_front
+    ldr     w0, [x0]
+    ret
+
+// ============================================================================
+// FUNCTION: queue_get_rear
+// Get current rear index (for C++ visualization)
+// Parameters: none
+// Returns: w0 = rear index (-1 if empty)
+// ============================================================================
+    .global queue_get_rear
+queue_get_rear:
+    adrp    x0, queue_rear
+    add     x0, x0, :lo12:queue_rear
+    ldr     w0, [x0]
+    ret
+
+// ============================================================================
+// FUNCTION: queue_get_count
+// Get current number of elements (for C++ visualization)
+// Parameters: none
+// Returns: w0 = element count
+// ============================================================================
+    .global queue_get_count
+queue_get_count:
+    adrp    x0, queue_count
+    add     x0, x0, :lo12:queue_count
+    ldr     w0, [x0]
+    ret
+
+// ============================================================================
+// FUNCTION: queue_get_capacity
+// Get queue capacity (for C++ visualization)
+// Parameters: none
+// Returns: w0 = maximum capacity
+// ============================================================================
+    .global queue_get_capacity
+queue_get_capacity:
+    mov     w0, queue_max_size
+    ret
