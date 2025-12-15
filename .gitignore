@@ -14,3 +14,8 @@ dsav-assembly/dsav
 # OS files
 .DS_Store
 Thumbs.db
+*build/
+*.a
+dsav-pure
+dsav-asm-linked
+commands.txt
