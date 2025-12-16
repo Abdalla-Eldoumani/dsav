@@ -20,7 +20,7 @@ include(`macros.m4')
 sort_array:         .skip 40                // Temporary array for sorting (10 elements)
 sort_aux_array:     .skip 40                // Auxiliary array for merge sort
 sort_size:          .word 0                 // Current array size
-sort_delay:         .word 200               // Animation delay in ms
+sort_delay:         .word 500               // Animation delay in ms
 
 // Highlight indices for visualization
 highlight_idx1:     .word -1                // First highlighted index
@@ -317,11 +317,12 @@ sort_init_done:
 // ============================================================================
     .global sort_display_array
 sort_display_array:
-    stp     x29, x30, [sp, -64]!
+    stp     x29, x30, [sp, -80]!
     mov     x29, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
+    stp     x25, x26, [sp, 64]
 
     // Load size
     adrp    x19, sort_size
@@ -345,30 +346,39 @@ sort_display_array:
     add     x23, x23, :lo12:sorted_up_to
     ldr     w23, [x23]
 
+    // Load merge range for merge/quick sort visualization
+    adrp    x25, merge_left
+    add     x25, x25, :lo12:merge_left
+    ldr     w25, [x25]
+
+    adrp    x26, merge_right
+    add     x26, x26, :lo12:merge_right
+    ldr     w26, [x26]
+
     // Clear screen
     bl      ansi_clear_screen
 
     // Draw box
     mov     w0, 3
-    mov     w1, 5
-    mov     w2, 70
+    mov     w1, 2
+    mov     w2, 80
     mov     w3, 10
     mov     w4, 0
     bl      draw_box
 
     // Print title
     mov     w0, 4
-    mov     w1, 7
+    mov     w1, 4
     bl      ansi_move_cursor
     adrp    x0, sort_title
     add     x0, x0, :lo12:sort_title
-    mov     w1, 66
+    mov     w1, 76
     bl      print_centered
 
     // Print separator
     mov     w0, 5
-    mov     w1, 5
-    mov     w2, 70
+    mov     w1, 2
+    mov     w2, 80
     mov     w3, 0
     bl      draw_horizontal_border_top
 
@@ -390,6 +400,20 @@ sort_display_loop:
     cmp     w24, w23
     b.le    sort_display_sorted
 
+    // Check if in merge range (for merge/quick sort)
+    cmp     w25, 0
+    b.lt    sort_display_normal              // merge_left < 0, not in merge mode
+    cmp     w24, w25
+    b.lt    sort_display_normal              // element before merge range
+    cmp     w24, w26
+    b.gt    sort_display_normal              // element after merge range
+
+    // Element is in merge range - highlight with yellow
+    mov     w0, 43                           // Yellow background
+    bl      ansi_set_color_bg
+    b       sort_display_print
+
+sort_display_normal:
     // Normal color (white)
     bl      ansi_reset_attributes
     b       sort_display_print
@@ -429,10 +453,11 @@ sort_display_print:
 sort_display_done:
     bl      print_newline
 
+    ldp     x25, x26, [sp, 64]
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 64
+    ldp     x29, x30, [sp], 80
     ret
 
     .section .rodata
