@@ -808,7 +808,7 @@ list_delete_int_done:
 list_search_interactive:
     stp     x29, x30, [sp, -32]!
     mov     x29, sp
-    str     x19, [sp, 16]
+    stp     x19, x20, [sp, 16]
 
     bl      ansi_clear_screen
 
@@ -830,11 +830,12 @@ list_search_interactive:
     // Search for value
     mov     x0, x19
     bl      list_search
+    mov     x20, x0                          // Save search result
 
     // Display list
     bl      list_display
 
-    cmp     x0, 0
+    cmp     x20, 0                           // Check saved search result
     b.eq    list_search_int_not_found
 
     // Position cursor for success message
@@ -875,7 +876,7 @@ list_search_int_not_found:
     bl      print_newline
 
 list_search_int_done:
-    ldr     x19, [sp, 16]
+    ldp     x19, x20, [sp, 16]
     ldp     x29, x30, [sp], 32
     ret
 
