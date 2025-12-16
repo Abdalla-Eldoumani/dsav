@@ -556,7 +556,7 @@ stack_display:
     mov     w0, 3
     mov     w1, 20
     mov     w2, 40
-    mov     w3, 18
+    mov     w3, 29
     mov     w4, 0                            // single-line
     bl      draw_box
 
@@ -641,7 +641,7 @@ stack_display_footer:
     bl      printf
 
     // Print size info
-    mov     w0, 19
+    mov     w0, 30
     mov     w1, 25
     bl      ansi_move_cursor
     adrp    x0, label_size
