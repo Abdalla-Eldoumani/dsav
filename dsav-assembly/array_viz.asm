@@ -438,19 +438,19 @@ array_display:
 
     // Draw box
     mov     w0, 3
-    mov     w1, 5
-    mov     w2, 70
+    mov     w1, 2
+    mov     w2, 80
     mov     w3, 10
     mov     w4, 0                            // single-line
     bl      draw_box
 
     // Print title
     mov     w0, 4
-    mov     w1, 7
+    mov     w1, 4
     bl      ansi_move_cursor
     adrp    x0, array_title
     add     x0, x0, :lo12:array_title
-    mov     w1, 66
+    mov     w1, 76
     bl      print_centered
 
     // Print "Index:" label
@@ -581,7 +581,7 @@ array_display_done:
 array_get_interactive:
     stp     x29, x30, [sp, -32]!
     mov     x29, sp
-    str     x19, [sp, 16]
+    stp     x19, x20, [sp, 16]
 
     // Load array count
     adrp    x19, array_count
@@ -605,9 +605,9 @@ array_get_interactive:
     mov     w20, w0                          // Save index
 
     // Get value
-    adrp    x21, array_data
-    add     x21, x21, :lo12:array_data
-    ldr     w1, [x21, w20, SXTW 2]
+    adrp    x0, array_data
+    add     x0, x0, :lo12:array_data
+    ldr     w1, [x0, w20, SXTW 2]
 
     // Position cursor for result message
     mov     w0, 22
@@ -636,7 +636,7 @@ array_get_empty:
     bl      print_newline
 
 array_get_done:
-    ldr     x19, [sp, 16]
+    ldp     x19, x20, [sp, 16]
     ldp     x29, x30, [sp], 32
     ret
 
