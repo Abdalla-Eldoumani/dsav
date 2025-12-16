@@ -22,9 +22,9 @@ define(`tmp2_x', `x10')
 define(`tmp3_x', `x11')
 
 dnl Common counter/index registers
-define(`counter', `w12')
-define(`index', `w13')
-define(`index_x', `x13')
+define(`ctr_reg', `w12')
+define(`idx_reg', `w13')
+define(`idx_reg_x', `x13')
 
 dnl ----------------------------------------------------------------------------
 dnl STACK FRAME MACROS
