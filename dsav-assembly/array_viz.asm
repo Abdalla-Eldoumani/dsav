@@ -607,7 +607,7 @@ array_get_interactive:
     // Get value
     adrp    x0, array_data
     add     x0, x0, :lo12:array_data
-    ldr     w1, [x0, w20, SXTW 2]
+    ldr     w21, [x0, w20, SXTW 2]
 
     // Position cursor for result message
     mov     w0, 22
@@ -617,7 +617,7 @@ array_get_interactive:
     // Print result
     adrp    x0, msg_value_at
     add     x0, x0, :lo12:msg_value_at
-    mov     w2, w1
+    mov     w2, w21
     mov     w1, w20
     bl      printf
     bl      print_newline
