@@ -27,7 +27,7 @@ Terminal-based visualizer for data structures and algorithms, written in pure AR
 - Colored ANSI terminal output
 - Step-by-step animations
 - Interactive menu
-- 200ms delays between steps
+- 500ms delays between steps
 
 ## Requirements
 
