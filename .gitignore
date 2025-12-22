@@ -2,7 +2,19 @@
 *.o
 *.s
 *.out
-dsav-assembly/dsav
+*.a
+
+# C/C++ executables
+dsav-pure
+dsav-asm-linked
+
+# Rust build artifacts
+target/
+Cargo.lock
+
+# Build directories
+build/
+*build/
 
 # Editor and IDE files
 .vscode/
@@ -14,8 +26,8 @@ dsav-assembly/dsav
 # OS files
 .DS_Store
 Thumbs.db
-*build/
-*.a
-dsav-pure
-dsav-asm-linked
+
+# Logs and temporary files
+*.log
+temp/
 commands.txt
