@@ -1,0 +1,26 @@
+[package]
+name = "dsav-gui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "dsav-gui"
+path = "src/main.rs"
+
+[dependencies]
+dsav-core = { path = "../dsav-core" }
+
+winit = { workspace = true }
+glutin = { workspace = true }
+glutin-winit = { workspace = true }
+raw-window-handle = { workspace = true }
+glow = { workspace = true }
+egui = { workspace = true }
+egui_glow = { workspace = true }
+glam = { workspace = true }
+
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+rand = "0.8"
