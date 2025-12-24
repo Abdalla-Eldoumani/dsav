@@ -804,7 +804,17 @@ bst_delete_interactive:
     bl      read_int
     mov     w19, w0
 
-    // Delete from tree
+    // First, search if the node exists
+    adrp    x0, bst_root
+    add     x0, x0, :lo12:bst_root
+    ldr     x0, [x0]
+    mov     w1, w19
+    bl      bst_search
+
+    cmp     x0, 0
+    b.eq    bst_delete_node_not_found    // Node doesn't exist
+
+    // Node exists, delete it
     adrp    x0, bst_root
     add     x0, x0, :lo12:bst_root
     mov     w1, w19
@@ -827,6 +837,23 @@ bst_delete_interactive:
 
     adrp    x0, msg_deleted
     add     x0, x0, :lo12:msg_deleted
+    mov     w1, w19
+    bl      printf
+    bl      print_newline
+
+    b       bst_delete_int_done
+
+bst_delete_node_not_found:
+    // Display tree (unchanged)
+    bl      bst_display_tree_visual
+
+    // Show not found message
+    mov     w0, 22
+    mov     w1, 1
+    bl      ansi_move_cursor
+
+    adrp    x0, msg_not_found
+    add     x0, x0, :lo12:msg_not_found
     mov     w1, w19
     bl      printf
     bl      print_newline
@@ -1098,52 +1125,130 @@ bst_init_sample:
     adrp    x19, bst_root
     add     x19, x19, :lo12:bst_root
 
+    // Get animation delay
+    adrp    x20, tree_visual_delay
+    add     x20, x20, :lo12:tree_visual_delay
+    ldr     w20, [x20]
+
+    // Insert and display each node
     mov     x0, x19
     mov     w1, 50
     bl      bst_insert
+    mov     w1, 50
+    mov     w0, w20
+    bl      bst_show_sample_insert
 
     mov     x0, x19
     mov     w1, 30
     bl      bst_insert
+    mov     w1, 30
+    mov     w0, w20
+    bl      bst_show_sample_insert
 
     mov     x0, x19
     mov     w1, 70
     bl      bst_insert
+    mov     w1, 70
+    mov     w0, w20
+    bl      bst_show_sample_insert
 
     mov     x0, x19
     mov     w1, 20
     bl      bst_insert
+    mov     w1, 20
+    mov     w0, w20
+    bl      bst_show_sample_insert
 
     mov     x0, x19
     mov     w1, 40
     bl      bst_insert
+    mov     w1, 40
+    mov     w0, w20
+    bl      bst_show_sample_insert
 
     mov     x0, x19
     mov     w1, 60
     bl      bst_insert
+    mov     w1, 60
+    mov     w0, w20
+    bl      bst_show_sample_insert
 
     mov     x0, x19
     mov     w1, 80
     bl      bst_insert
+    mov     w1, 80
+    mov     w0, w20
+    bl      bst_show_sample_insert
 
-    // Display tree
-    bl      ansi_clear_screen
-    bl      bst_display_simple
-
-    // Position cursor for message
+    // Final message
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
-
-    adrp    x0, msg_tree_cleared
-    add     x0, x0, :lo12:msg_tree_cleared
-    bl      printf
-    adrp    x0, .Lsample_msg
-    add     x0, x0, :lo12:.Lsample_msg
+    adrp    x0, .Lsample_complete
+    add     x0, x0, :lo12:.Lsample_complete
     bl      printf
     bl      print_newline
 
     ldr     x19, [sp, 16]
+    ldp     x29, x30, [sp], 32
+    ret
+
+// ============================================================================
+// FUNCTION: bst_show_sample_insert
+// Show tree after inserting a value (for sample initialization)
+// Input: w0 = delay, w1 = inserted value
+// ============================================================================
+bst_show_sample_insert:
+    stp     x29, x30, [sp, -32]!
+    mov     x29, sp
+    stp     x19, x20, [sp, 16]
+
+    mov     w19, w0                      // Save delay
+    mov     w20, w1                      // Save value
+
+    // Clear and show tree
+    bl      ansi_clear_screen
+    mov     w0, 2
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, bst_title
+    add     x0, x0, :lo12:bst_title
+    mov     w1, 80
+    bl      print_centered
+
+    mov     w0, 3
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, .Lbuilding_tree_msg
+    add     x0, x0, :lo12:.Lbuilding_tree_msg
+    bl      printf
+
+    // Draw tree
+    adrp    x0, bst_root
+    add     x0, x0, :lo12:bst_root
+    ldr     x0, [x0]
+    mov     w1, 6
+    mov     w2, 40
+    mov     w3, 20
+    mov     x4, 0
+    bl      bst_draw_node_recursive
+
+    // Show message
+    mov     w0, 22
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, .Linserted_val_msg
+    add     x0, x0, :lo12:.Linserted_val_msg
+    mov     w1, w20
+    bl      printf
+
+    // Flush and delay
+    mov     x0, 0
+    bl      fflush
+    mov     w0, w19
+    bl      delay_ms
+
+    ldp     x19, x20, [sp, 16]
     ldp     x29, x30, [sp], 32
     ret
 
@@ -1453,15 +1558,38 @@ bst_search_animated:
     cbz     x19, search_anim_not_found   // Empty tree
 
 search_anim_loop:
+    // Clear screen and draw title
+    bl      ansi_clear_screen
+    mov     w0, 2
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, bst_title
+    add     x0, x0, :lo12:bst_title
+    mov     w1, 80
+    bl      print_centered
+
+    // Show search message
+    mov     w0, 3
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, .Lsearching_msg
+    add     x0, x0, :lo12:.Lsearching_msg
+    ldr     w1, [x19, NODE_DATA]
+    bl      printf
+
     // Draw tree with current node highlighted
     mov     x4, x19                      // Highlight current node
     adrp    x0, bst_root
     add     x0, x0, :lo12:bst_root
     ldr     x0, [x0]
-    mov     w1, 5                        // Starting row
+    mov     w1, 6                        // Starting row
     mov     w2, 40                       // Center column
     mov     w3, 20                       // Initial spacing
     bl      bst_draw_node_recursive
+
+    // Flush output to ensure frame is displayed
+    mov     x0, 0                        // stdout is NULL for fflush
+    bl      fflush
 
     // Add delay for animation
     mov     w0, w21
@@ -1522,12 +1650,31 @@ bst_inorder_animated:
     ldr     x0, [x19, NODE_LEFT]
     bl      bst_inorder_animated
 
-    // Display tree with current node highlighted
+    // Clear screen and display tree with current node highlighted
     bl      ansi_clear_screen
+
+    // Draw title
+    mov     w0, 2
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, bst_title
+    add     x0, x0, :lo12:bst_title
+    mov     w1, 80
+    bl      print_centered
+
+    // Show inorder label
+    mov     w0, 3
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, .Linorder_trav_msg
+    add     x0, x0, :lo12:.Linorder_trav_msg
+    bl      printf
+
+    // Draw tree
     adrp    x0, bst_root
     add     x0, x0, :lo12:bst_root
     ldr     x0, [x0]
-    mov     w1, 5
+    mov     w1, 6
     mov     w2, 40
     mov     w3, 20
     mov     x4, x19                      // Highlight current
@@ -1541,6 +1688,10 @@ bst_inorder_animated:
     add     x0, x0, :lo12:.Lvisiting_msg
     ldr     w1, [x19, NODE_DATA]
     bl      printf
+
+    // Flush output to ensure frame is displayed
+    mov     x0, 0
+    bl      fflush
 
     // Delay
     mov     w0, w20
@@ -1578,12 +1729,31 @@ bst_preorder_animated:
     add     x20, x20, :lo12:tree_visual_delay
     ldr     w20, [x20]
 
-    // Display tree with current node highlighted
+    // Clear screen and display tree with current node highlighted
     bl      ansi_clear_screen
+
+    // Draw title
+    mov     w0, 2
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, bst_title
+    add     x0, x0, :lo12:bst_title
+    mov     w1, 80
+    bl      print_centered
+
+    // Show preorder label
+    mov     w0, 3
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, .Lpreorder_trav_msg
+    add     x0, x0, :lo12:.Lpreorder_trav_msg
+    bl      printf
+
+    // Draw tree
     adrp    x0, bst_root
     add     x0, x0, :lo12:bst_root
     ldr     x0, [x0]
-    mov     w1, 5
+    mov     w1, 6
     mov     w2, 40
     mov     w3, 20
     mov     x4, x19                      // Highlight current
@@ -1597,6 +1767,10 @@ bst_preorder_animated:
     add     x0, x0, :lo12:.Lvisiting_msg
     ldr     w1, [x19, NODE_DATA]
     bl      printf
+
+    // Flush output to ensure frame is displayed
+    mov     x0, 0
+    bl      fflush
 
     // Delay
     mov     w0, w20
@@ -1646,12 +1820,31 @@ bst_postorder_animated:
     ldr     x0, [x19, NODE_RIGHT]
     bl      bst_postorder_animated
 
-    // Display tree with current node highlighted
+    // Clear screen and display tree with current node highlighted
     bl      ansi_clear_screen
+
+    // Draw title
+    mov     w0, 2
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, bst_title
+    add     x0, x0, :lo12:bst_title
+    mov     w1, 80
+    bl      print_centered
+
+    // Show postorder label
+    mov     w0, 3
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, .Lpostorder_trav_msg
+    add     x0, x0, :lo12:.Lpostorder_trav_msg
+    bl      printf
+
+    // Draw tree
     adrp    x0, bst_root
     add     x0, x0, :lo12:bst_root
     ldr     x0, [x0]
-    mov     w1, 5
+    mov     w1, 6
     mov     w2, 40
     mov     w3, 20
     mov     x4, x19                      // Highlight current
@@ -1665,6 +1858,10 @@ bst_postorder_animated:
     add     x0, x0, :lo12:.Lvisiting_msg
     ldr     w1, [x19, NODE_DATA]
     bl      printf
+
+    // Flush output to ensure frame is displayed
+    mov     x0, 0
+    bl      fflush
 
     // Delay
     mov     w0, w20
@@ -1681,9 +1878,16 @@ postorder_anim_done:
 // Format strings and helper messages
 // ============================================================================
     .data
-fmt_int:        .string "%d "
-fmt_newline:    .string "\n"
-.Lsample_msg:   .string " Initialized with sample tree."
-.Linorder_label: .string "Tree (Inorder): "
-.Lnode_fmt:     .string "%02d"
-.Lvisiting_msg: .string "Visiting node: %d"
+fmt_int:            .string "%d "
+fmt_newline:        .string "\n"
+.Lsample_msg:       .string " Initialized with sample tree."
+.Linorder_label:    .string "Tree (Inorder): "
+.Lnode_fmt:         .string "%02d"
+.Lvisiting_msg:     .string "Visiting node: %d"
+.Lsearching_msg:    .string "Searching at node: %d"
+.Linorder_trav_msg: .string "Inorder Traversal (Left-Root-Right)"
+.Lpreorder_trav_msg: .string "Preorder Traversal (Root-Left-Right)"
+.Lpostorder_trav_msg: .string "Postorder Traversal (Left-Right-Root)"
+.Lbuilding_tree_msg: .string "Building Sample Tree..."
+.Linserted_val_msg: .string "Inserted: %d"
+.Lsample_complete:  .string "Sample tree initialization complete!"
