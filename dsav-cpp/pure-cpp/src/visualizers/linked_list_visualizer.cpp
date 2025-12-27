@@ -8,6 +8,8 @@
 #include <sstream>
 #include <iomanip>
 #include <cmath>
+#include <random>
+#include <ctime>
 
 namespace dsav {
 
@@ -48,23 +50,135 @@ void LinkedListVisualizer::renderVisualization() {
         ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::mantle))
     );
 
-    // Calculate total width and center horizontally
+    // Calculate scaled dimensions with zoom
+    float scaledNodeWidth = NODE_WIDTH * m_zoomLevel;
+    float scaledNodeHeight = NODE_HEIGHT * m_zoomLevel;
+    float scaledNodeSpacing = NODE_SPACING * m_zoomLevel;
+
+    // Calculate total width with zoom applied
     float totalWidth = 0.0f;
     if (!m_visualNodes.empty()) {
-        totalWidth = m_visualNodes.size() * NODE_WIDTH +
-                     (m_visualNodes.size() - 1) * NODE_SPACING;
+        totalWidth = m_visualNodes.size() * scaledNodeWidth +
+                     (m_visualNodes.size() - 1) * scaledNodeSpacing;
     }
 
+    // Calculate horizontal offset for centering
     float horizontalOffset = (canvasSize.x - totalWidth) / 2.0f;
     if (horizontalOffset < 100.0f) {
         horizontalOffset = 100.0f;
     }
 
-    // Draw "HEAD →" indicator
+    // Apply camera offset
+    horizontalOffset += m_cameraOffsetX;
+
+    // Calculate interaction hitbox (smaller, only where elements are)
+    float hitboxPadding = 40.0f;
+    ImVec2 hitboxPos = ImVec2(
+        canvasPos.x + std::max(100.0f, horizontalOffset - hitboxPadding - 80.0f),  // Include HEAD label
+        canvasPos.y + START_Y * m_zoomLevel - hitboxPadding
+    );
+    ImVec2 hitboxSize = ImVec2(
+        std::min(canvasSize.x - 120.0f, totalWidth + hitboxPadding * 2 + 80.0f),
+        scaledNodeHeight + hitboxPadding * 2
+    );
+
+    // Make sure hitbox stays within canvas
+    if (hitboxPos.x < canvasPos.x + 20.0f) {
+        hitboxSize.x -= (canvasPos.x + 20.0f - hitboxPos.x);
+        hitboxPos.x = canvasPos.x + 20.0f;
+    }
+    if (hitboxPos.x + hitboxSize.x > canvasPos.x + canvasSize.x - 20.0f) {
+        hitboxSize.x = canvasPos.x + canvasSize.x - 20.0f - hitboxPos.x;
+    }
+
+    // Set cursor position for the hitbox
+    ImGui::SetCursorScreenPos(hitboxPos);
+    ImGui::InvisibleButton("linkedlist_canvas", hitboxSize);
+    bool isHovered = ImGui::IsItemHovered();
+    bool isActive = ImGui::IsItemActive();
+
+    // Handle mouse drag for panning
+    if (isActive && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+        if (!m_isDragging) {
+            m_isDragging = true;
+            m_lastMousePos = ImGui::GetMousePos();
+        } else {
+            ImVec2 currentMousePos = ImGui::GetMousePos();
+            float deltaX = currentMousePos.x - m_lastMousePos.x;
+            m_cameraOffsetX += deltaX;
+            m_lastMousePos = currentMousePos;
+        }
+    } else {
+        m_isDragging = false;
+    }
+
+    // Handle mouse wheel
+    if (isHovered) {
+        float wheel = ImGui::GetIO().MouseWheel;
+        if (wheel != 0.0f) {
+            // Check if Ctrl is held for zoom
+            if (ImGui::GetIO().KeyCtrl) {
+                // Zoom in/out
+                float oldZoom = m_zoomLevel;
+                float zoomDelta = wheel * 0.1f;
+                m_zoomLevel += zoomDelta;
+
+                // Clamp zoom level
+                if (m_zoomLevel < 0.3f) m_zoomLevel = 0.3f;
+                if (m_zoomLevel > 3.0f) m_zoomLevel = 3.0f;
+
+                // Adjust camera offset to zoom toward mouse position
+                ImVec2 mousePos = ImGui::GetMousePos();
+                float mouseRelativeX = mousePos.x - canvasPos.x - horizontalOffset;
+                float zoomRatio = m_zoomLevel / oldZoom;
+
+                // Adjust offset so zoom focuses on mouse position
+                m_cameraOffsetX = m_cameraOffsetX * zoomRatio + mouseRelativeX * (1.0f - zoomRatio);
+            } else {
+                // Regular horizontal scrolling
+                m_cameraOffsetX += wheel * 50.0f;
+            }
+        }
+    }
+
+    // Recalculate with potentially updated zoom
+    scaledNodeWidth = NODE_WIDTH * m_zoomLevel;
+    scaledNodeHeight = NODE_HEIGHT * m_zoomLevel;
+    scaledNodeSpacing = NODE_SPACING * m_zoomLevel;
+
+    totalWidth = 0.0f;
     if (!m_visualNodes.empty()) {
+        totalWidth = m_visualNodes.size() * scaledNodeWidth +
+                     (m_visualNodes.size() - 1) * scaledNodeSpacing;
+    }
+
+    horizontalOffset = (canvasSize.x - totalWidth) / 2.0f;
+    if (horizontalOffset < 100.0f) {
+        horizontalOffset = 100.0f;
+    }
+    horizontalOffset += m_cameraOffsetX;
+
+    // Clamp camera offset to prevent scrolling too far
+    float maxOffset = 0.0f;
+    float minOffset = canvasSize.x - totalWidth - 120.0f;
+    if (minOffset > maxOffset) minOffset = maxOffset;
+
+    if (m_cameraOffsetX > (maxOffset - ((canvasSize.x - totalWidth) / 2.0f) + 100.0f)) {
+        m_cameraOffsetX = maxOffset - ((canvasSize.x - totalWidth) / 2.0f) + 100.0f;
+        horizontalOffset = maxOffset + 100.0f;
+    }
+    if (horizontalOffset < minOffset) {
+        m_cameraOffsetX = minOffset - ((canvasSize.x - totalWidth) / 2.0f);
+        horizontalOffset = minOffset;
+    }
+
+    // Draw "HEAD →" indicator (positioned close to first node)
+    if (!m_visualNodes.empty() && !m_visualNodes[0].isNull) {
+        float scaledY = START_Y * m_zoomLevel;
+        float firstNodeX = START_X * m_zoomLevel;  // First node's actual X position
         ImVec2 headTextPos = ImVec2(
-            canvasPos.x + horizontalOffset - 70.0f,
-            canvasPos.y + START_Y + NODE_HEIGHT / 2.0f - 10.0f
+            canvasPos.x + horizontalOffset + firstNodeX - 60.0f,  // 60px left of first node
+            canvasPos.y + scaledY + scaledNodeHeight / 2.0f - 10.0f
         );
         drawList->AddText(
             headTextPos,
@@ -73,17 +187,20 @@ void LinkedListVisualizer::renderVisualization() {
         );
     }
 
-    // Draw nodes and arrows
+    // Draw nodes and arrows with zoom
     for (size_t i = 0; i < m_visualNodes.size(); ++i) {
         const auto& visualNode = m_visualNodes[i];
+
+        float scaledX = visualNode.position.x * m_zoomLevel;
+        float scaledY = START_Y * m_zoomLevel;
 
         // Create VisualElement for rendering
         VisualElement elem;
         elem.position = glm::vec2(
-            canvasPos.x + horizontalOffset + visualNode.position.x,
-            canvasPos.y + visualNode.position.y
+            canvasPos.x + horizontalOffset + scaledX,
+            canvasPos.y + scaledY
         );
-        elem.size = visualNode.size;
+        elem.size = glm::vec2(scaledNodeWidth, scaledNodeHeight);
         elem.color = visualNode.color;
         elem.borderColor = visualNode.borderColor;
         elem.borderWidth = 2.0f;
@@ -95,12 +212,14 @@ void LinkedListVisualizer::renderVisualization() {
         // Draw arrow to next node
         if (visualNode.hasNext && i < m_visualNodes.size() - 1) {
             ImVec2 arrowStart = ImVec2(
-                elem.position.x + NODE_WIDTH,
-                elem.position.y + NODE_HEIGHT / 2.0f
+                elem.position.x + scaledNodeWidth,
+                elem.position.y + scaledNodeHeight / 2.0f
             );
+
+            float nextScaledX = m_visualNodes[i + 1].position.x * m_zoomLevel;
             ImVec2 arrowEnd = ImVec2(
-                canvasPos.x + horizontalOffset + m_visualNodes[i + 1].position.x,
-                canvasPos.y + m_visualNodes[i + 1].position.y + NODE_HEIGHT / 2.0f
+                canvasPos.x + horizontalOffset + nextScaledX,
+                canvasPos.y + scaledY + scaledNodeHeight / 2.0f
             );
 
             drawArrow(drawList, arrowStart, arrowEnd,
@@ -108,21 +227,7 @@ void LinkedListVisualizer::renderVisualization() {
         }
     }
 
-    // Draw "NULL" indicator at the end
-    if (!m_visualNodes.empty()) {
-        const auto& lastNode = m_visualNodes.back();
-        ImVec2 nullPos = ImVec2(
-            canvasPos.x + horizontalOffset + lastNode.position.x + NODE_WIDTH + 20.0f,
-            canvasPos.y + lastNode.position.y + NODE_HEIGHT / 2.0f - 10.0f
-        );
-        drawList->AddText(
-            nullPos,
-            ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::overlay1)),
-            "→ NULL"
-        );
-    }
-
-    // Draw info text if empty
+    // Draw info text if empty (only NULL node)
     if (m_list.isEmpty()) {
         ImVec2 textPos = ImVec2(
             canvasPos.x + canvasSize.x / 2.0f - 120.0f,
@@ -132,6 +237,24 @@ void LinkedListVisualizer::renderVisualization() {
             textPos,
             ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::overlay1)),
             "Linked list is empty. Use Insert to add nodes."
+        );
+    }
+
+    // Show interaction hints
+    if (!m_list.isEmpty()) {
+        std::string hintText = "Drag to pan | Scroll to move | Ctrl+Scroll to zoom";
+        if (m_zoomLevel != 1.0f) {
+            hintText += " (Zoom: " + std::to_string(static_cast<int>(m_zoomLevel * 100)) + "%)";
+        }
+        ImVec2 hintSize = ImGui::CalcTextSize(hintText.c_str());
+        ImVec2 hintPos = ImVec2(
+            canvasPos.x + canvasSize.x - hintSize.x - 10.0f,
+            canvasPos.y + 10.0f
+        );
+        drawList->AddText(
+            hintPos,
+            ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::overlay0)),
+            hintText.c_str()
         );
     }
 }
@@ -263,6 +386,25 @@ void LinkedListVisualizer::renderControls() {
 
     ImGui::EndDisabled();
     ui::Tooltip(tooltipText.c_str());
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // Initialize operation
+    ImGui::Text("Initialize:");
+    ImGui::PushItemWidth(150.0f);
+    ImGui::InputInt("Count", &m_initCount);
+    if (m_initCount < 1) m_initCount = 1;
+    if (m_initCount > 20) m_initCount = 20;  // Reasonable limit
+    ImGui::PopItemWidth();
+
+    ImGui::BeginDisabled(isAnimating());
+    if (ui::ButtonPrimary("Initialize Random", ImVec2(200, 0))) {
+        initializeRandom(static_cast<size_t>(m_initCount));
+    }
+    ImGui::EndDisabled();
+    ui::Tooltip("Fill list with random values (clears existing list)");
 
     ImGui::Separator();
 
@@ -585,6 +727,54 @@ void LinkedListVisualizer::searchValue(int value) {
     }
 }
 
+void LinkedListVisualizer::initializeRandom(size_t count) {
+    // Clear existing list
+    m_list.clear();
+    m_visualNodes.clear();
+    m_animator.clear();
+
+    // Update status
+    std::ostringstream oss;
+    oss << "Initializing list with " << count << " random nodes...";
+    m_statusText = oss.str();
+
+    // Generate random values
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(1, 99);
+
+    // Populate list with random values
+    for (size_t i = 0; i < count; ++i) {
+        m_list.insertBack(dis(gen));
+    }
+
+    // Sync visuals (includes NULL node)
+    syncVisuals();
+
+    // Animate each node appearing with a cascade effect
+    for (size_t i = 0; i < m_visualNodes.size(); ++i) {
+        // Skip the NULL node for animation
+        if (m_visualNodes[i].isNull) continue;
+
+        auto& node = m_visualNodes[i];
+
+        // Flash to show appearance
+        Animation fadeIn = createColorAnimation(node.color, colors::semantic::elementBase, 0.15f);
+        if (i == m_visualNodes.size() - 2) {  // -2 because last is NULL node
+            fadeIn.onComplete = [this, count]() {
+                std::ostringstream oss;
+                oss << "Initialized list with " << count << " random nodes";
+                m_statusText = oss.str();
+            };
+        }
+        m_animator.enqueue(fadeIn);
+    }
+
+    // Reset camera position and zoom
+    m_cameraOffsetX = 0.0f;
+    m_zoomLevel = 1.0f;
+}
+
 void LinkedListVisualizer::play() {
     m_isPaused = false;
     m_animator.setPaused(false);
@@ -638,6 +828,7 @@ void LinkedListVisualizer::syncVisuals() {
     auto current = m_list.head();
     size_t index = 0;
 
+    // Add regular data nodes
     while (current) {
         VisualNode vnode;
         vnode.position = calculatePosition(index);
@@ -645,13 +836,26 @@ void LinkedListVisualizer::syncVisuals() {
         vnode.color = colors::semantic::elementBase;
         vnode.borderColor = colors::semantic::elementBorder;
         vnode.label = std::to_string(current->data);
-        vnode.hasNext = (current->next != nullptr);
+        vnode.hasNext = true;  // Always has next (points to next node or NULL node)
+        vnode.isNull = false;
 
         m_visualNodes.push_back(vnode);
 
         current = current->next;
         index++;
     }
+
+    // Always add NULL terminator node at the end
+    VisualNode nullNode;
+    nullNode.position = calculatePosition(index);
+    nullNode.size = glm::vec2(NODE_WIDTH, NODE_HEIGHT);
+    nullNode.color = colors::withAlpha(colors::mocha::surface1, 0.5f);
+    nullNode.borderColor = colors::mocha::overlay0;
+    nullNode.label = "NULL";
+    nullNode.hasNext = false;
+    nullNode.isNull = true;
+
+    m_visualNodes.push_back(nullNode);
 }
 
 glm::vec2 LinkedListVisualizer::calculatePosition(size_t index) const {
