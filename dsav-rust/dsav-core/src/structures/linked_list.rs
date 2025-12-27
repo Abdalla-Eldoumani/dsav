@@ -150,6 +150,24 @@ impl VisualizableLinkedList {
         Ok(current.value)
     }
 
+    pub fn update(&mut self, index: usize, value: i32) -> Result<i32> {
+        if index >= self.length {
+            return Err(DsavError::IndexOutOfBounds {
+                index,
+                size: self.length,
+            });
+        }
+
+        let mut current = self.head.as_mut().unwrap();
+        for _ in 0..index {
+            current = current.next.as_mut().unwrap();
+        }
+
+        let old_value = current.value;
+        current.value = value;
+        Ok(old_value)
+    }
+
     pub fn len(&self) -> usize {
         self.length
     }
@@ -338,6 +356,51 @@ impl Visualizable for VisualizableLinkedList {
                         }),
                     });
                 }
+
+                Ok(steps)
+            }
+
+            Operation::Update(index, value) => {
+                let mut steps = Vec::new();
+
+                if index >= self.length {
+                    return Err(DsavError::IndexOutOfBounds {
+                        index,
+                        size: self.length,
+                    });
+                }
+
+                let old_value = self.get(index)?;
+
+                steps.push(Step {
+                    description: format!("Updating node at position {}", index),
+                    highlight_indices: vec![],
+                    active_indices: vec![],
+                    metadata: serde_json::json!({
+                        "operation": "update",
+                        "index": index,
+                        "old_value": old_value,
+                        "new_value": value
+                    }),
+                });
+
+                for i in 0..index {
+                    steps.push(Step {
+                        description: format!("Traversing to position {}", i),
+                        highlight_indices: vec![i],
+                        active_indices: vec![],
+                        metadata: serde_json::json!({}),
+                    });
+                }
+
+                self.update(index, value)?;
+
+                steps.push(Step {
+                    description: format!("Updated node at position {} from {} to {}", index, old_value, value),
+                    highlight_indices: vec![],
+                    active_indices: vec![index],
+                    metadata: serde_json::json!({}),
+                });
 
                 Ok(steps)
             }
