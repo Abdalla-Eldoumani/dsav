@@ -317,6 +317,272 @@ fn partition(arr: &mut [i32], low: usize, high: usize, steps: &mut Vec<Step>) ->
     Ok(i)
 }
 
+pub fn selection_sort_with_steps(arr: &mut [i32]) -> Result<Vec<Step>> {
+    let mut steps = Vec::new();
+    let n = arr.len();
+
+    if n <= 1 {
+        return Ok(steps);
+    }
+
+    steps.push(Step {
+        description: "Starting Selection Sort".to_string(),
+        highlight_indices: vec![],
+        active_indices: vec![],
+        metadata: serde_json::json!({
+            "array_state": arr.to_vec()
+        }),
+    });
+
+    for i in 0..n - 1 {
+        let mut min_idx = i;
+
+        steps.push(Step {
+            description: format!("Finding minimum in unsorted portion (from index {})", i),
+            highlight_indices: vec![i],
+            active_indices: vec![],
+            metadata: serde_json::json!({
+                "operation": "select",
+                "index": i,
+                "array_state": arr.to_vec()
+            }),
+        });
+
+        for j in i + 1..n {
+            steps.push(Step {
+                description: format!("Comparing {} with current minimum {}", arr[j], arr[min_idx]),
+                highlight_indices: vec![j, min_idx],
+                active_indices: vec![],
+                metadata: serde_json::json!({
+                    "operation": "compare",
+                    "values": [arr[j], arr[min_idx]],
+                    "array_state": arr.to_vec()
+                }),
+            });
+
+            if arr[j] < arr[min_idx] {
+                min_idx = j;
+                steps.push(Step {
+                    description: format!("New minimum found: {} at index {}", arr[min_idx], min_idx),
+                    highlight_indices: vec![min_idx],
+                    active_indices: vec![],
+                    metadata: serde_json::json!({
+                        "operation": "new_min",
+                        "min_value": arr[min_idx],
+                        "min_index": min_idx,
+                        "array_state": arr.to_vec()
+                    }),
+                });
+            }
+        }
+
+        if min_idx != i {
+            arr.swap(i, min_idx);
+
+            steps.push(Step {
+                description: format!("Swapping {} at index {} with {} at index {}", arr[min_idx], min_idx, arr[i], i),
+                highlight_indices: vec![],
+                active_indices: vec![i, min_idx],
+                metadata: serde_json::json!({
+                    "operation": "swap",
+                    "values": [arr[i], arr[min_idx]],
+                    "array_state": arr.to_vec()
+                }),
+            });
+        }
+
+        steps.push(Step {
+            description: format!("Element {} is now in final position at index {}", arr[i], i),
+            highlight_indices: vec![i],
+            active_indices: vec![],
+            metadata: serde_json::json!({
+                "operation": "sorted",
+                "index": i,
+                "array_state": arr.to_vec()
+            }),
+        });
+    }
+
+    steps.push(Step {
+        description: "Selection sort complete".to_string(),
+        highlight_indices: vec![],
+        active_indices: (0..n).collect(),
+        metadata: serde_json::json!({
+            "array_state": arr.to_vec()
+        }),
+    });
+
+    Ok(steps)
+}
+
+pub fn merge_sort_with_steps(arr: &mut [i32]) -> Result<Vec<Step>> {
+    let mut steps = Vec::new();
+    let n = arr.len();
+
+    if n <= 1 {
+        return Ok(steps);
+    }
+
+    steps.push(Step {
+        description: "Starting Merge Sort".to_string(),
+        highlight_indices: vec![],
+        active_indices: vec![],
+        metadata: serde_json::json!({
+            "array_state": arr.to_vec()
+        }),
+    });
+
+    merge_sort_helper(arr, 0, n - 1, &mut steps)?;
+
+    steps.push(Step {
+        description: "Merge sort complete".to_string(),
+        highlight_indices: vec![],
+        active_indices: (0..n).collect(),
+        metadata: serde_json::json!({
+            "array_state": arr.to_vec()
+        }),
+    });
+
+    Ok(steps)
+}
+
+fn merge_sort_helper(arr: &mut [i32], left: usize, right: usize, steps: &mut Vec<Step>) -> Result<()> {
+    if left < right {
+        let mid = left + (right - left) / 2;
+
+        steps.push(Step {
+            description: format!("Dividing array from index {} to {} at mid {}", left, right, mid),
+            highlight_indices: (left..=right).collect(),
+            active_indices: vec![mid],
+            metadata: serde_json::json!({
+                "operation": "divide",
+                "left": left,
+                "mid": mid,
+                "right": right,
+                "array_state": arr.to_vec()
+            }),
+        });
+
+        merge_sort_helper(arr, left, mid, steps)?;
+        merge_sort_helper(arr, mid + 1, right, steps)?;
+        merge(arr, left, mid, right, steps)?;
+    }
+
+    Ok(())
+}
+
+fn merge(arr: &mut [i32], left: usize, mid: usize, right: usize, steps: &mut Vec<Step>) -> Result<()> {
+    let left_half = arr[left..=mid].to_vec();
+    let right_half = arr[mid + 1..=right].to_vec();
+
+    steps.push(Step {
+        description: format!("Merging subarrays [{}..{}] and [{}..{}]", left, mid, mid + 1, right),
+        highlight_indices: (left..=right).collect(),
+        active_indices: vec![],
+        metadata: serde_json::json!({
+            "operation": "merge_start",
+            "left": left,
+            "mid": mid,
+            "right": right,
+            "array_state": arr.to_vec()
+        }),
+    });
+
+    let mut i = 0;
+    let mut j = 0;
+    let mut k = left;
+
+    while i < left_half.len() && j < right_half.len() {
+        steps.push(Step {
+            description: format!("Comparing {} and {}", left_half[i], right_half[j]),
+            highlight_indices: vec![k],
+            active_indices: vec![],
+            metadata: serde_json::json!({
+                "operation": "compare",
+                "values": [left_half[i], right_half[j]],
+                "array_state": arr.to_vec()
+            }),
+        });
+
+        if left_half[i] <= right_half[j] {
+            arr[k] = left_half[i];
+            steps.push(Step {
+                description: format!("Placing {} at index {}", left_half[i], k),
+                highlight_indices: vec![],
+                active_indices: vec![k],
+                metadata: serde_json::json!({
+                    "operation": "place",
+                    "value": left_half[i],
+                    "index": k,
+                    "array_state": arr.to_vec()
+                }),
+            });
+            i += 1;
+        } else {
+            arr[k] = right_half[j];
+            steps.push(Step {
+                description: format!("Placing {} at index {}", right_half[j], k),
+                highlight_indices: vec![],
+                active_indices: vec![k],
+                metadata: serde_json::json!({
+                    "operation": "place",
+                    "value": right_half[j],
+                    "index": k,
+                    "array_state": arr.to_vec()
+                }),
+            });
+            j += 1;
+        }
+        k += 1;
+    }
+
+    while i < left_half.len() {
+        arr[k] = left_half[i];
+        steps.push(Step {
+            description: format!("Copying remaining element {} at index {}", left_half[i], k),
+            highlight_indices: vec![],
+            active_indices: vec![k],
+            metadata: serde_json::json!({
+                "operation": "copy",
+                "value": left_half[i],
+                "index": k,
+                "array_state": arr.to_vec()
+            }),
+        });
+        i += 1;
+        k += 1;
+    }
+
+    while j < right_half.len() {
+        arr[k] = right_half[j];
+        steps.push(Step {
+            description: format!("Copying remaining element {} at index {}", right_half[j], k),
+            highlight_indices: vec![],
+            active_indices: vec![k],
+            metadata: serde_json::json!({
+                "operation": "copy",
+                "value": right_half[j],
+                "index": k,
+                "array_state": arr.to_vec()
+            }),
+        });
+        j += 1;
+        k += 1;
+    }
+
+    steps.push(Step {
+        description: format!("Merge complete for range [{}..{}]", left, right),
+        highlight_indices: (left..=right).collect(),
+        active_indices: vec![],
+        metadata: serde_json::json!({
+            "operation": "merge_complete",
+            "array_state": arr.to_vec()
+        }),
+    });
+
+    Ok(())
+}
+
 pub fn binary_search_with_steps(arr: &[i32], target: i32) -> Result<Vec<Step>> {
     let mut steps = Vec::new();
     let n = arr.len();
