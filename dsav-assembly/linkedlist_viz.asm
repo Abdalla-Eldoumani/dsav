@@ -58,6 +58,10 @@ label_head:         .string "HEAD"
 label_null:         .string "NULL"
 label_nodes:        .string "Nodes: %d"
 
+// Highlight color for search animation
+highlight_color:    .string "\x1b[43;30m"       // Yellow background, black text
+color_reset:        .string "\x1b[0m"
+
     .text
     .balign 4
 
@@ -800,15 +804,16 @@ list_delete_int_done:
 
 // ============================================================================
 // FUNCTION: list_search_interactive
-// Interactive search
+// Interactive search with animated traversal
 // Parameters: none
 // Returns: none
 // ============================================================================
     .global list_search_interactive
 list_search_interactive:
-    stp     x29, x30, [sp, -32]!
+    stp     x29, x30, [sp, -48]!
     mov     x29, sp
     stp     x19, x20, [sp, 16]
+    str     x21, [sp, 32]
 
     bl      ansi_clear_screen
 
@@ -825,18 +830,64 @@ list_search_interactive:
     bl      printf
 
     bl      read_int
-    sxtw    x19, w0
+    sxtw    x19, w0                          // x19 = search target
 
-    // Search for value
-    mov     x0, x19
-    bl      list_search
-    mov     x20, x0                          // Save search result
-
-    // Display list
+    // Show initial list
     bl      list_display
 
-    cmp     x20, 0                           // Check saved search result
+    // Wait for user to start
+    mov     w0, 23
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, .Lmsg_press_enter
+    add     x0, x0, :lo12:.Lmsg_press_enter
+    bl      printf
+
+    bl      clear_input_buffer
+    bl      getchar
+
+    // Animated search - Load head
+    adrp    x1, list_head
+    add     x1, x1, :lo12:list_head
+    ldr     x20, [x1]                        // x20 = current node
+    mov     w21, 0                           // x21 = current index
+
+list_search_anim_loop:
+    cmp     x20, 0
     b.eq    list_search_int_not_found
+
+    // Display list with current node highlighted
+    bl      ansi_clear_screen
+    bl      list_display_with_highlight      // Pass x20 as highlighted node
+
+    // Position cursor for search message
+    mov     w0, 15
+    mov     w1, 10
+    bl      ansi_move_cursor
+    adrp    x0, .Lmsg_checking
+    add     x0, x0, :lo12:.Lmsg_checking
+    ldr     w1, [x20, node_data_offset]
+    mov     w2, w21
+    bl      printf
+
+    // Delay for animation
+    mov     w0, 500                          // 500ms delay
+    bl      delay_ms
+
+    // Check if current node matches target
+    ldr     x2, [x20, node_data_offset]
+    cmp     x2, x19
+    b.eq    list_search_int_found
+
+    // Move to next node
+    ldr     x20, [x20, node_next_offset]
+    add     w21, w21, 1
+    b       list_search_anim_loop
+
+list_search_int_found:
+    // Display final state with found node highlighted
+    bl      ansi_clear_screen
+    bl      list_display_with_highlight
 
     // Position cursor for success message
     mov     w0, 22
@@ -864,6 +915,10 @@ list_search_int_empty:
     b       list_search_int_done
 
 list_search_int_not_found:
+    // Display final state
+    bl      ansi_clear_screen
+    bl      list_display
+
     // Position cursor for message
     mov     w0, 22
     mov     w1, 1
@@ -876,8 +931,9 @@ list_search_int_not_found:
     bl      print_newline
 
 list_search_int_done:
+    ldr     x21, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     x29, x30, [sp], 48
     ret
 
 // ============================================================================
@@ -1024,4 +1080,167 @@ list_display_done:
 .Larrow_down:   .string "↓"
 .Larrow_right:  .string "──>"
 .Lnode_fmt:     .string "[%3ld]"
+.Lmsg_press_enter: .string "\x1b[33mPress Enter to start searching...\x1b[0m"
+.Lmsg_checking: .string "Checking node value %ld at index %d..."
     .text
+
+// ============================================================================
+// FUNCTION: list_display_with_highlight
+// Displays the linked list with a specific node highlighted
+// Parameters:
+//   x20 = pointer to node to highlight (passed in x20)
+// Returns: none
+// ============================================================================
+    .global list_display_with_highlight
+list_display_with_highlight:
+    stp     x29, x30, [sp, -48]!
+    mov     x29, sp
+    stp     x19, x20, [sp, 16]
+    str     x21, [sp, 32]
+
+    // Save highlighted node pointer
+    mov     x21, x20                         // x21 = highlight_node
+
+    // Load head
+    adrp    x1, list_head
+    add     x1, x1, :lo12:list_head
+    ldr     x19, [x1]
+
+    // Check if empty
+    cmp     x19, 0
+    b.eq    list_display_hl_empty
+
+    // Draw box
+    mov     w0, 3
+    mov     w1, 5
+    mov     w2, 70
+    mov     w3, 12
+    mov     w4, 0                            // single-line
+    bl      draw_box
+
+    // Print title
+    mov     w0, 4
+    mov     w1, 7
+    bl      ansi_move_cursor
+    adrp    x0, list_title
+    add     x0, x0, :lo12:list_title
+    mov     w1, 66
+    bl      print_centered
+
+    // Draw separator
+    mov     w0, 5
+    mov     w1, 5
+    mov     w2, 70
+    mov     w3, 0
+    bl      draw_horizontal_border_top
+
+    // Print HEAD label
+    mov     w0, 8
+    mov     w1, 10
+    bl      ansi_move_cursor
+    adrp    x0, label_head
+    add     x0, x0, :lo12:label_head
+    bl      printf
+
+    // Print arrow
+    mov     w0, 9
+    mov     w1, 11
+    bl      ansi_move_cursor
+    adrp    x0, .Larrow_down
+    add     x0, x0, :lo12:.Larrow_down
+    bl      printf
+
+    // Display nodes
+    mov     w20, 10                          // Starting row
+    mov     w22, 10                          // Column position
+
+list_display_hl_loop:
+    cmp     x19, 0
+    b.eq    list_display_hl_footer
+
+    // Position cursor
+    mov     w0, w20
+    mov     w1, w22
+    bl      ansi_move_cursor
+
+    // Check if this is the highlighted node
+    cmp     x19, x21
+    b.ne    list_display_hl_normal
+
+    // Highlight this node
+    adrp    x0, highlight_color
+    add     x0, x0, :lo12:highlight_color
+    bl      printf
+
+list_display_hl_normal:
+    // Print node box and value
+    ldr     x1, [x19, node_data_offset]
+    adrp    x0, .Lnode_fmt
+    add     x0, x0, :lo12:.Lnode_fmt
+    bl      printf
+
+    // Reset color if it was highlighted
+    cmp     x19, x21
+    b.ne    list_display_hl_no_reset
+
+    adrp    x0, color_reset
+    add     x0, x0, :lo12:color_reset
+    bl      printf
+
+list_display_hl_no_reset:
+    // Check if there's a next node
+    ldr     x19, [x19, node_next_offset]
+    cmp     x19, 0
+    b.eq    list_display_hl_last_node
+
+    // Print arrow
+    adrp    x0, .Larrow_right
+    add     x0, x0, :lo12:.Larrow_right
+    bl      printf
+
+    add     w22, w22, 11                     // Move to next position
+    b       list_display_hl_loop
+
+list_display_hl_last_node:
+    // Print NULL
+    adrp    x0, .Larrow_right
+    add     x0, x0, :lo12:.Larrow_right
+    bl      printf
+
+    adrp    x0, label_null
+    add     x0, x0, :lo12:label_null
+    bl      printf
+
+list_display_hl_footer:
+    // Print count
+    mov     w0, 13
+    mov     w1, 10
+    bl      ansi_move_cursor
+
+    adrp    x1, list_count
+    add     x1, x1, :lo12:list_count
+    ldr     w1, [x1]
+
+    adrp    x0, label_nodes
+    add     x0, x0, :lo12:label_nodes
+    bl      printf
+
+    bl      print_newline
+    b       list_display_hl_done
+
+list_display_hl_empty:
+    // Position cursor for error message
+    mov     w0, 10
+    mov     w1, 1
+    bl      ansi_move_cursor
+
+    adrp    x0, msg_empty
+    add     x0, x0, :lo12:msg_empty
+    bl      printf
+    bl      print_newline
+
+list_display_hl_done:
+    ldr     x21, [sp, 32]
+    ldp     x19, x20, [sp, 16]
+    ldp     x29, x30, [sp], 48
+    ret
