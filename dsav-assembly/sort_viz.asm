@@ -892,19 +892,20 @@ insertion_inner:
     cmp     w23, 0
     b.lt    insertion_inner_done
 
-    // Highlight key position and comparison position
+    // Highlight element being compared and the key position
     adrp    x24, highlight_idx1
     add     x24, x24, :lo12:highlight_idx1
-    str     w23, [x24]
+    str     w23, [x24]                   // Element to compare
 
     adrp    x24, highlight_idx2
     add     x24, x24, :lo12:highlight_idx2
     add     w0, w23, 1
-    str     w0, [x24]
+    str     w0, [x24]                    // Key position
 
+    // Display before comparison
     bl      sort_display_array
 
-    // Delay
+    // Delay to show comparison
     adrp    x1, sort_delay
     add     x1, x1, :lo12:sort_delay
     ldr     w0, [x1]
@@ -918,6 +919,16 @@ insertion_inner:
     // Shift arr[j] to arr[j+1]
     add     w1, w23, 1
     str     w0, [x20, w1, SXTW 2]
+
+    // Display after shift to show movement
+    bl      sort_display_array
+
+    // Shorter delay for shift
+    adrp    x1, sort_delay
+    add     x1, x1, :lo12:sort_delay
+    ldr     w0, [x1]
+    lsr     w0, w0, 1                    // Half delay for shift
+    bl      delay_ms
 
     sub     w23, w23, 1
     b       insertion_inner
@@ -1171,13 +1182,14 @@ merge_inner_loop:
     mov     w2, w24
     bl      sort_merge_arrays
 
-    // Display after merge
-    bl      sort_display_array
+    // Clear highlights after merge completes
+    bl      sort_reset_highlights
 
-    // Delay for animation
+    // Brief pause between merge operations
     adrp    x0, sort_delay
     add     x0, x0, :lo12:sort_delay
     ldr     w0, [x0]
+    lsr     w0, w0, 1                    // Half delay between merges
     bl      delay_ms
 
 merge_skip:
@@ -1244,6 +1256,26 @@ merge_compare_loop:
     cmp     w23, w21                     // Compare j with right
     b.gt    merge_copy_left
 
+    // Highlight the two elements being compared during merge
+    // highlight_idx1 = i (from left subarray)
+    // highlight_idx2 = j (from right subarray)
+    adrp    x0, highlight_idx1
+    add     x0, x0, :lo12:highlight_idx1
+    str     w22, [x0]
+
+    adrp    x0, highlight_idx2
+    add     x0, x0, :lo12:highlight_idx2
+    str     w23, [x0]
+
+    // Display to show which two elements we're comparing
+    bl      sort_display_array
+
+    // Delay to show comparison
+    adrp    x0, sort_delay
+    add     x0, x0, :lo12:sort_delay
+    ldr     w0, [x0]
+    bl      delay_ms
+
     // Compare aux[i] and aux[j]
     ldr     w0, [x26, w22, SXTW 2]       // Load aux[i]
     ldr     w1, [x26, w23, SXTW 2]       // Load aux[j]
@@ -1254,19 +1286,72 @@ merge_take_right:
     str     w1, [x25, w24, SXTW 2]       // Store aux[j] to array[k]
     add     w23, w23, 1                  // j++
     add     w24, w24, 1                  // k++
+
+    // Clear highlights and show element placed
+    adrp    x0, highlight_idx1
+    add     x0, x0, :lo12:highlight_idx1
+    mov     w1, -1
+    str     w1, [x0]
+
+    adrp    x0, highlight_idx2
+    add     x0, x0, :lo12:highlight_idx2
+    str     w1, [x0]
+
+    bl      sort_display_array
+
+    adrp    x0, sort_delay
+    add     x0, x0, :lo12:sort_delay
+    ldr     w0, [x0]
+    lsr     w0, w0, 1                    // Half delay for placement
+    bl      delay_ms
+
     b       merge_compare_loop
 
 merge_take_left:
     str     w0, [x25, w24, SXTW 2]       // Store aux[i] to array[k]
     add     w22, w22, 1                  // i++
     add     w24, w24, 1                  // k++
+
+    // Clear highlights and show element placed
+    adrp    x0, highlight_idx1
+    add     x0, x0, :lo12:highlight_idx1
+    mov     w1, -1
+    str     w1, [x0]
+
+    adrp    x0, highlight_idx2
+    add     x0, x0, :lo12:highlight_idx2
+    str     w1, [x0]
+
+    bl      sort_display_array
+
+    adrp    x0, sort_delay
+    add     x0, x0, :lo12:sort_delay
+    ldr     w0, [x0]
+    lsr     w0, w0, 1                    // Half delay for placement
+    bl      delay_ms
+
     b       merge_compare_loop
 
 merge_copy_left:
     cmp     w22, w20                     // Compare i with mid
     b.gt    merge_complete
+
+    // Highlight remaining element being copied
+    adrp    x0, highlight_idx1
+    add     x0, x0, :lo12:highlight_idx1
+    str     w22, [x0]
+
     ldr     w0, [x26, w22, SXTW 2]       // Load aux[i]
     str     w0, [x25, w24, SXTW 2]       // Store to array[k]
+
+    bl      sort_display_array
+
+    adrp    x0, sort_delay
+    add     x0, x0, :lo12:sort_delay
+    ldr     w0, [x0]
+    lsr     w0, w0, 1                    // Half delay
+    bl      delay_ms
+
     add     w22, w22, 1                  // i++
     add     w24, w24, 1                  // k++
     b       merge_copy_left
@@ -1274,8 +1359,23 @@ merge_copy_left:
 merge_copy_right:
     cmp     w23, w21                     // Compare j with right
     b.gt    merge_complete
+
+    // Highlight remaining element being copied
+    adrp    x0, highlight_idx2
+    add     x0, x0, :lo12:highlight_idx2
+    str     w23, [x0]
+
     ldr     w0, [x26, w23, SXTW 2]       // Load aux[j]
     str     w0, [x25, w24, SXTW 2]       // Store to array[k]
+
+    bl      sort_display_array
+
+    adrp    x0, sort_delay
+    add     x0, x0, :lo12:sort_delay
+    ldr     w0, [x0]
+    lsr     w0, w0, 1                    // Half delay
+    bl      delay_ms
+
     add     w23, w23, 1                  // j++
     add     w24, w24, 1                  // k++
     b       merge_copy_right
@@ -1450,10 +1550,19 @@ partition_loop:
     cmp     w23, w20                     // Compare j with high
     b.ge    partition_done
 
-    // Highlight current element
+    // Highlight current element being compared
     adrp    x0, highlight_idx2
     add     x0, x0, :lo12:highlight_idx2
     str     w23, [x0]                    // Store j as highlight
+
+    // Display BEFORE comparison so user sees what we're comparing
+    bl      sort_display_array
+
+    // Delay to show comparison
+    adrp    x0, sort_delay
+    add     x0, x0, :lo12:sort_delay
+    ldr     w0, [x0]
+    bl      delay_ms
 
     // Compare arr[j] with pivot
     ldr     w0, [x24, w23, SXTW 2]       // Load array[j]
@@ -1472,7 +1581,7 @@ partition_loop:
     // Display after swap
     bl      sort_display_array
 
-    // Delay
+    // Delay after swap
     adrp    x0, sort_delay
     add     x0, x0, :lo12:sort_delay
     ldr     w0, [x0]
