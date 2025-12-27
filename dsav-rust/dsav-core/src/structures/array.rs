@@ -50,6 +50,19 @@ impl VisualizableArray {
         Ok(self.elements.remove(index))
     }
 
+    pub fn update(&mut self, index: usize, value: i32) -> Result<i32> {
+        if index >= self.elements.len() {
+            return Err(DsavError::IndexOutOfBounds {
+                index,
+                size: self.elements.len(),
+            });
+        }
+
+        let old_value = self.elements[index];
+        self.elements[index] = value;
+        Ok(old_value)
+    }
+
     pub fn get(&self, index: usize) -> Result<i32> {
         self.elements.get(index).copied().ok_or_else(|| {
             DsavError::IndexOutOfBounds {
@@ -200,6 +213,45 @@ impl Visualizable for VisualizableArray {
             Operation::BinarySearch(target) => {
                 use crate::algorithms::sorting::binary_search_with_steps;
                 binary_search_with_steps(&self.elements, target)
+            }
+
+            Operation::Update(index, value) => {
+                let mut steps = Vec::new();
+
+                let old_value = self.get(index)?;
+
+                steps.push(Step {
+                    description: format!("Updating index {} from {} to {}", index, old_value, value),
+                    highlight_indices: vec![index],
+                    active_indices: vec![],
+                    metadata: serde_json::json!({
+                        "operation": "update",
+                        "index": index,
+                        "old_value": old_value,
+                        "new_value": value
+                    }),
+                });
+
+                self.update(index, value)?;
+
+                steps.push(Step {
+                    description: format!("Updated index {} to {}", index, value),
+                    highlight_indices: vec![],
+                    active_indices: vec![index],
+                    metadata: serde_json::json!({}),
+                });
+
+                Ok(steps)
+            }
+
+            Operation::SelectionSort => {
+                use crate::algorithms::sorting::selection_sort_with_steps;
+                selection_sort_with_steps(&mut self.elements)
+            }
+
+            Operation::MergeSort => {
+                use crate::algorithms::sorting::merge_sort_with_steps;
+                merge_sort_with_steps(&mut self.elements)
             }
 
             _ => Err(DsavError::InvalidState {
