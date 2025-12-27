@@ -41,13 +41,15 @@ menu_bottom:        .string "╚════════════════
 // Input prompts
 prompt_target:      .string "Enter target value to search for: "
 prompt_size:        .string "Enter array size (3-10): "
+prompt_speed:       .string "Enter animation speed in ms (100-2500): "
 
 // Status messages
 msg_found:          .string "\x1b[32mTarget %d found at index %d!\x1b[0m\n"
 msg_not_found:      .string "\x1b[31mTarget %d not found in array.\x1b[0m\n"
 msg_initialized:    .string "\x1b[32mArray initialized with %d random elements.\x1b[0m\n"
 msg_sorted:         .string "\x1b[32mArray sorted successfully.\x1b[0m\n"
-msg_sort_needed:    .string "\x1b[33mWarning: Binary search requires a sorted array!\x1b[0m\n"
+msg_sort_prompt:    .string "\x1b[33mBinary search requires a sorted array. Sort it now? (y/n): \x1b[0m"
+msg_sorting:        .string "\x1b[36mSorting array...\x1b[0m\n"
 msg_empty:          .string "\x1b[31mError: Array is empty. Initialize first.\x1b[0m\n"
 msg_press_enter:    .string "\x1b[36mPress Enter to start searching...\x1b[0m"
 msg_checking:       .string "Checking index %d..."
@@ -58,12 +60,12 @@ str_left:           .string "left"
 str_right:          .string "right"
 
 // Display formatting
-display_header:     .string "\n  Search Array:\n  "
-display_indices:    .string "  ["
-display_values:     .string "  ["
-display_separator:  .string ", "
-display_close:      .string "]\n"
+display_header:     .string "SEARCH ARRAY VISUALIZATION"
+display_index_label: .string "Index:"
+display_value_label: .string "Value:"
 display_target:     .string "\n  Target: %d\n"
+index_fmt:          .string "%3d"
+value_fmt:          .string "%3d"
 
 // ANSI color codes for visualization
 ansi_reset:         .string "\x1b[0m"
@@ -77,9 +79,14 @@ ansi_home:          .string "\x1b[H"
 // Printf format strings
 int_fmt:            .string "%d"
 scan_fmt:           .string "%d"
+char_fmt:           .string "%c"
 
     .text
     .balign 4
+
+    .section .rodata
+.Lclear_line:       .string "\x1b[2K"       // Clear entire line
+    .text
 
 // ============================================================================
 // search_menu - Main search algorithm menu
@@ -189,8 +196,33 @@ search_menu_binary:
     b       search_menu_loop
 
 search_menu_display:
+    // Check if array is initialized first
+    adrp    x0, search_size
+    add     x0, x0, :lo12:search_size
+    ldr     w0, [x0]
+    cmp     w0, 0
+    b.le    search_menu_display_empty
+
     bl      search_display_array            // Display array
     bl      wait_for_enter                  // Wait for user
+    b       search_menu_loop
+
+search_menu_display_empty:
+    // Clear screen
+    adrp    x0, ansi_clear
+    add     x0, x0, :lo12:ansi_clear
+    bl      printf
+
+    // Position cursor and show message
+    mov     w0, 10
+    mov     w1, 1
+    bl      ansi_move_cursor
+
+    adrp    x0, msg_empty
+    add     x0, x0, :lo12:msg_empty
+    bl      printf
+
+    bl      wait_for_enter
     b       search_menu_loop
 
 search_menu_init:
@@ -387,6 +419,114 @@ search_sort_exit:
     undefine(`temp')
 
 // ============================================================================
+// search_get_speed - Prompts user to enter animation speed
+// ============================================================================
+search_get_speed:
+    define(speed, w19)
+
+    stp     x29, x30, [sp, -32]!            // Save registers
+    mov     x29, sp
+    str     x19, [sp, 16]
+
+    // Position cursor for prompt
+    mov     w0, 22
+    mov     w1, 1
+    bl      ansi_move_cursor
+
+    // Prompt for speed
+    adrp    x0, prompt_speed
+    add     x0, x0, :lo12:prompt_speed
+    bl      printf
+
+    // Read speed with range validation (100-2500 ms)
+    mov     w0, 100                         // min
+    mov     w1, 2500                        // max
+    bl      read_int_range
+    mov     speed, w0                       // Save speed
+
+    // Store in search_delay
+    adrp    x0, search_delay
+    add     x0, x0, :lo12:search_delay
+    str     speed, [x0]
+
+    // Clear the line to avoid overlap with next prompt
+    mov     w0, 22
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, .Lclear_line
+    add     x0, x0, :lo12:.Lclear_line
+    bl      printf
+
+    ldr     x19, [sp, 16]                   // Restore registers
+    ldp     x29, x30, [sp], 32
+    ret
+
+    undefine(`speed')
+
+// ============================================================================
+// search_check_if_sorted - Check if array is sorted in ascending order
+// Returns: w0 = 1 if sorted, 0 if not sorted
+// ============================================================================
+search_check_if_sorted:
+    define(size, w19)
+    define(index, w20)
+    define(array_ptr, x21)
+
+    stp     x29, x30, [sp, -48]!            // Save registers
+    mov     x29, sp
+    stp     x19, x20, [sp, 16]
+    str     x21, [sp, 32]
+
+    // Get array size
+    adrp    x0, search_size
+    add     x0, x0, :lo12:search_size
+    ldr     size, [x0]
+
+    // If size <= 1, consider it sorted
+    cmp     size, 1
+    b.le    search_is_sorted
+
+    // Get array pointer
+    adrp    array_ptr, search_array
+    add     array_ptr, array_ptr, :lo12:search_array
+
+    // Check if each element <= next element
+    mov     index, 0
+
+search_check_loop:
+    add     w0, index, 1
+    cmp     w0, size
+    b.ge    search_is_sorted                // Reached end, it's sorted
+
+    // Compare array[i] with array[i+1]
+    ldr     w0, [array_ptr, index, SXTW 2]
+    add     w1, index, 1
+    ldr     w1, [array_ptr, w1, SXTW 2]
+
+    cmp     w0, w1
+    b.gt    search_not_sorted               // array[i] > array[i+1], not sorted
+
+    add     index, index, 1
+    b       search_check_loop
+
+search_is_sorted:
+    mov     w0, 1                           // Return 1 (sorted)
+    b       search_check_done
+
+search_not_sorted:
+    mov     w0, 0                           // Return 0 (not sorted)
+
+search_check_done:
+    ldr     x21, [sp, 32]                   // Restore registers
+    ldp     x19, x20, [sp, 16]
+    ldp     x29, x30, [sp], 48
+    ret
+
+    undefine(`size')
+    undefine(`index')
+    undefine(`array_ptr')
+
+// ============================================================================
 // search_run_linear - Run linear search with visualization
 // ============================================================================
 search_run_linear:
@@ -409,6 +549,9 @@ search_run_linear:
 
     cmp     size, 0
     b.le    search_linear_empty
+
+    // Get speed from user
+    bl      search_get_speed
 
     // Get target from user
     mov     w0, 22                          // Position cursor at row 22
@@ -598,6 +741,9 @@ search_run_binary:
     cmp     size, 0
     b.le    search_binary_empty
 
+    // Get speed from user
+    bl      search_get_speed
+
     // Get target from user
     mov     w0, 22                          // Position cursor at row 22
     mov     w1, 1
@@ -621,16 +767,89 @@ search_run_binary:
     mov     w1, -1
     str     w1, [x0]
 
-    // Display warning about sorted array
+    // Check if array is sorted, offer to sort if not
+    bl      search_check_if_sorted
+    cmp     w0, 0
+    b.ne    search_binary_array_sorted
+
+    // Array is not sorted - ask user if they want to sort
     mov     w0, 23                          // Position cursor at row 23
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_sort_needed
-    add     x0, x0, :lo12:msg_sort_needed
+    adrp    x0, msg_sort_prompt
+    add     x0, x0, :lo12:msg_sort_prompt
     bl      printf
 
-    bl      wait_for_enter
+    // Read y/n response
+    bl      clear_input_buffer
+    bl      getchar
+
+    // Check if user said yes
+    cmp     w0, 'y'
+    b.eq    search_binary_do_sort
+    cmp     w0, 'Y'
+    b.eq    search_binary_do_sort
+
+    // User said no, continue anyway
+    b       search_binary_continue
+
+search_binary_do_sort:
+    // Clear line and show sorting message
+    mov     w0, 23
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, .Lclear_line
+    add     x0, x0, :lo12:.Lclear_line
+    bl      printf
+
+    mov     w0, 23
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, msg_sorting
+    add     x0, x0, :lo12:msg_sorting
+    bl      printf
+
+    // Sort the array
+    bl      search_sort_array
+
+    b       search_binary_continue
+
+search_binary_array_sorted:
+    // Array is already sorted, just show press enter
+    mov     w0, 23                          // Position cursor at row 23
+    mov     w1, 1
+    bl      ansi_move_cursor
+
+    adrp    x0, msg_press_enter
+    add     x0, x0, :lo12:msg_press_enter
+    bl      printf
+
+    bl      clear_input_buffer
+    bl      getchar
+    b       search_binary_start
+
+search_binary_continue:
+    // Clear line
+    mov     w0, 23
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, .Lclear_line
+    add     x0, x0, :lo12:.Lclear_line
+    bl      printf
+
+    // Show press enter
+    mov     w0, 23
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, msg_press_enter
+    add     x0, x0, :lo12:msg_press_enter
+    bl      printf
+
+    bl      clear_input_buffer
+    bl      getchar
+
+search_binary_start:
 
     // Get array pointer and delay
     adrp    array_ptr, search_array
@@ -778,7 +997,7 @@ search_binary_exit:
     undefine(`delay')
 
 // ============================================================================
-// search_display_array - Display array with color-coded highlighting
+// search_display_array - Display array with color-coded highlighting (table format)
 // ============================================================================
 search_display_array:
     define(size, w19)
@@ -790,6 +1009,7 @@ search_display_array:
     define(low, w25)
     define(mid, w26)
     define(high, w27)
+    define(column, w28)
 
     stp     x29, x30, [sp, -96]!            // Save registers
     mov     x29, sp
@@ -797,7 +1017,7 @@ search_display_array:
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
     stp     x25, x26, [sp, 64]
-    str     x27, [sp, 80]
+    stp     x27, x28, [sp, 80]
 
     // Clear screen and go home
     adrp    x0, ansi_clear
@@ -845,64 +1065,73 @@ search_display_array:
     add     x0, x0, :lo12:high_idx
     ldr     high, [x0]
 
-    // Print header
+    // Draw box
+    mov     w0, 3
+    mov     w1, 2
+    mov     w2, 80
+    mov     w3, 10
+    mov     w4, 0                            // single-line
+    bl      draw_box
+
+    // Print title
+    mov     w0, 4
+    mov     w1, 4
+    bl      ansi_move_cursor
     adrp    x0, display_header
     add     x0, x0, :lo12:display_header
+    mov     w1, 76
+    bl      print_centered
+
+    // Print "Index:" label
+    mov     w0, 6
+    mov     w1, 10
+    bl      ansi_move_cursor
+    adrp    x0, display_index_label
+    add     x0, x0, :lo12:display_index_label
     bl      printf
 
     // Print indices
-    adrp    x0, display_indices
-    add     x0, x0, :lo12:display_indices
-    bl      printf
-
     mov     counter, 0
+    mov     column, 20                       // Starting column
 
 search_display_indices_loop:
     cmp     counter, size
-    b.ge    search_display_indices_done
+    b.ge    search_display_values_start
 
-    // Print separator if not first
-    cmp     counter, 0
-    b.eq    search_display_idx_no_sep
+    mov     w0, 6
+    mov     w1, column
+    bl      ansi_move_cursor
 
-    adrp    x0, display_separator
-    add     x0, x0, :lo12:display_separator
-    bl      printf
-
-search_display_idx_no_sep:
-    adrp    x0, int_fmt
-    add     x0, x0, :lo12:int_fmt
+    adrp    x0, index_fmt
+    add     x0, x0, :lo12:index_fmt
     mov     w1, counter
     bl      printf
 
+    add     column, column, 6                // Next column
     add     counter, counter, 1
     b       search_display_indices_loop
 
-search_display_indices_done:
-    adrp    x0, display_close
-    add     x0, x0, :lo12:display_close
+search_display_values_start:
+    // Print "Value:" label
+    mov     w0, 7
+    mov     w1, 10
+    bl      ansi_move_cursor
+    adrp    x0, display_value_label
+    add     x0, x0, :lo12:display_value_label
     bl      printf
 
     // Print values with color coding
-    adrp    x0, display_values
-    add     x0, x0, :lo12:display_values
-    bl      printf
-
     mov     counter, 0
+    mov     column, 20                       // Starting column
 
 search_display_values_loop:
     cmp     counter, size
-    b.ge    search_display_values_done
+    b.ge    search_display_footer
 
-    // Print separator if not first
-    cmp     counter, 0
-    b.eq    search_display_val_no_sep
+    mov     w0, 7
+    mov     w1, column
+    bl      ansi_move_cursor
 
-    adrp    x0, display_separator
-    add     x0, x0, :lo12:display_separator
-    bl      printf
-
-search_display_val_no_sep:
     // Determine color based on state
     // Priority: found > mid > low/high > current > checked
 
@@ -928,33 +1157,28 @@ search_display_val_no_sep:
     b       search_display_normal
 
 search_display_found:
-    adrp    x0, ansi_green_bg               // Green for found
-    add     x0, x0, :lo12:ansi_green_bg
-    bl      printf
+    mov     w0, 42                           // Green background
+    bl      ansi_set_color_bg
     b       search_display_value
 
 search_display_mid:
-    adrp    x0, ansi_yellow_bg              // Yellow for mid
-    add     x0, x0, :lo12:ansi_yellow_bg
-    bl      printf
+    mov     w0, 43                           // Yellow background
+    bl      ansi_set_color_bg
     b       search_display_value
 
 search_display_low_high:
-    adrp    x0, ansi_cyan_bg                // Cyan for low/high
-    add     x0, x0, :lo12:ansi_cyan_bg
-    bl      printf
+    mov     w0, 46                           // Cyan background
+    bl      ansi_set_color_bg
     b       search_display_value
 
 search_display_current:
-    adrp    x0, ansi_yellow_bg              // Yellow for current
-    add     x0, x0, :lo12:ansi_yellow_bg
-    bl      printf
+    mov     w0, 43                           // Yellow background
+    bl      ansi_set_color_bg
     b       search_display_value
 
 search_display_checked:
-    adrp    x0, ansi_gray_bg                // Gray for checked
-    add     x0, x0, :lo12:ansi_gray_bg
-    bl      printf
+    mov     w0, 100                          // Gray background
+    bl      ansi_set_color_bg
     b       search_display_value
 
 search_display_normal:
@@ -963,24 +1187,23 @@ search_display_normal:
 search_display_value:
     // Print value
     ldr     w1, [array_ptr, counter, SXTW 2]
-    adrp    x0, int_fmt
-    add     x0, x0, :lo12:int_fmt
+    adrp    x0, value_fmt
+    add     x0, x0, :lo12:value_fmt
     bl      printf
 
     // Reset color
-    adrp    x0, ansi_reset
-    add     x0, x0, :lo12:ansi_reset
-    bl      printf
+    bl      ansi_reset_attributes
 
+    add     column, column, 6                // Next column
     add     counter, counter, 1
     b       search_display_values_loop
 
-search_display_values_done:
-    adrp    x0, display_close
-    add     x0, x0, :lo12:display_close
-    bl      printf
-
+search_display_footer:
     // Print target value
+    mov     w0, 9
+    mov     w1, 10
+    bl      ansi_move_cursor
+
     adrp    x0, search_target
     add     x0, x0, :lo12:search_target
     ldr     w1, [x0]
@@ -990,7 +1213,7 @@ search_display_values_done:
     bl      printf
 
 search_display_exit:
-    ldr     x27, [sp, 80]                   // Restore registers
+    ldp     x27, x28, [sp, 80]               // Restore registers
     ldp     x25, x26, [sp, 64]
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
