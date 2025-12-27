@@ -46,8 +46,9 @@ menu_bst_3:         .string "[3] Search Node"
 menu_bst_4:         .string "[4] Inorder Traversal"
 menu_bst_5:         .string "[5] Preorder Traversal"
 menu_bst_6:         .string "[6] Postorder Traversal"
-menu_bst_7:         .string "[7] Initialize Sample Tree"
-menu_bst_8:         .string "[8] Display Tree (ASCII)"
+menu_bst_7:         .string "[7] Levelorder Traversal"
+menu_bst_8:         .string "[8] Initialize Sample Tree"
+menu_bst_9:         .string "[9] Display Tree (ASCII)"
 menu_bst_0:         .string "[0] Back to Main Menu"
 
 menu_prompt:        .string "Enter your choice: "
@@ -67,6 +68,10 @@ label_traversal:    .string "Traversal: "
 
 // Temporary buffer for traversal output
 traversal_buffer:   .skip 256
+
+// Queue for level-order traversal (256 pointers = 2048 bytes)
+    .balign 8
+levelorder_queue:   .skip 2048
 
 // Tree visualization data
 tree_visual_delay:  .word 500              // Animation delay in ms
@@ -459,6 +464,82 @@ postorder_done:
     ret
 
 // ============================================================================
+// bst_levelorder - Level-order traversal (Breadth-First)
+// ============================================================================
+// Input:  x0 = root pointer
+// Output: Prints values in level-order
+// ============================================================================
+    .global bst_levelorder
+bst_levelorder:
+    cbz     x0, levelorder_done              // Empty tree
+
+    stp     x29, x30, [sp, -64]!             // Allocate stack frame
+    mov     x29, sp
+    stp     x19, x20, [sp, 16]
+    stp     x21, x22, [sp, 32]
+    stp     x23, x24, [sp, 48]
+
+    mov     x19, x0                          // x19 = root
+
+    // Use static global queue
+    adrp    x20, levelorder_queue
+    add     x20, x20, :lo12:levelorder_queue // x20 = queue base
+
+    mov     w21, 0                           // w21 = front index
+    mov     w22, 0                           // w22 = rear index
+    mov     w23, 0                           // w23 = count
+
+    // Enqueue root
+    str     x19, [x20]                       // queue[0] = root
+    mov     w22, 1                           // rear = 1
+    mov     w23, 1                           // count = 1
+
+levelorder_loop:
+    cmp     w23, 0                           // Check if queue empty
+    b.le    levelorder_complete              // Exit if empty
+
+    // Dequeue front node
+    ldr     x19, [x20, w21, UXTW #3]         // x19 = queue[front]
+    add     w21, w21, 1                      // front++
+    and     w21, w21, 0xFF                   // front %= 256 (circular)
+    sub     w23, w23, 1                      // count--
+
+    // Print current node
+    adrp    x0, fmt_int
+    add     x0, x0, :lo12:fmt_int
+    ldr     w1, [x19, NODE_DATA]
+    bl      printf
+
+    // Enqueue left child if exists
+    ldr     x24, [x19, NODE_LEFT]
+    cbz     x24, levelorder_skip_left
+    str     x24, [x20, w22, UXTW #3]         // queue[rear] = left
+    add     w22, w22, 1                      // rear++
+    and     w22, w22, 0xFF                   // rear %= 256
+    add     w23, w23, 1                      // count++
+
+levelorder_skip_left:
+    // Enqueue right child if exists
+    ldr     x24, [x19, NODE_RIGHT]
+    cbz     x24, levelorder_skip_right
+    str     x24, [x20, w22, UXTW #3]         // queue[rear] = right
+    add     w22, w22, 1                      // rear++
+    and     w22, w22, 0xFF                   // rear %= 256
+    add     w23, w23, 1                      // count++
+
+levelorder_skip_right:
+    b       levelorder_loop
+
+levelorder_complete:
+    ldp     x23, x24, [sp, 48]
+    ldp     x21, x22, [sp, 32]
+    ldp     x19, x20, [sp, 16]
+    ldp     x29, x30, [sp], 64
+
+levelorder_done:
+    ret
+
+// ============================================================================
 // bst_free_all - Free all nodes in tree
 // ============================================================================
 // Input:  x0 = pointer to root pointer
@@ -531,7 +612,7 @@ bst_menu_loop:
 
     // Get user choice
     mov     w0, 0                            // min
-    mov     w1, 8                            // max
+    mov     w1, 9                            // max (updated for new menu option)
     bl      read_int_range
 
     // Dispatch based on choice
@@ -557,9 +638,12 @@ bst_menu_loop:
     b.eq    bst_menu_postorder
 
     cmp     w0, 7
-    b.eq    bst_menu_init
+    b.eq    bst_menu_levelorder
 
     cmp     w0, 8
+    b.eq    bst_menu_init
+
+    cmp     w0, 9
     b.eq    bst_menu_display_tree
 
     b       bst_menu_loop
@@ -591,6 +675,11 @@ bst_menu_preorder:
 
 bst_menu_postorder:
     bl      bst_postorder_interactive
+    bl      wait_for_enter
+    b       bst_menu_loop
+
+bst_menu_levelorder:
+    bl      bst_levelorder_interactive
     bl      wait_for_enter
     b       bst_menu_loop
 
@@ -627,7 +716,7 @@ display_bst_menu:
     mov     w0, 3                            // row
     mov     w1, 15                           // column
     mov     w2, 50                           // width
-    mov     w3, 18                           // height (increased for option 8)
+    mov     w3, 20                           // height (increased for options 7, 8, 9)
     mov     w4, 1                            // double-line style
     bl      draw_box
 
@@ -707,19 +796,26 @@ display_bst_menu:
     mov     w0, 15
     mov     w1, 20
     bl      ansi_move_cursor
+    adrp    x0, menu_bst_9
+    add     x0, x0, :lo12:menu_bst_9
+    bl      printf
+
+    mov     w0, 16
+    mov     w1, 20
+    bl      ansi_move_cursor
     adrp    x0, menu_bst_0
     add     x0, x0, :lo12:menu_bst_0
     bl      printf
 
     // Print separator
-    mov     w0, 17
+    mov     w0, 18
     mov     w1, 15
     mov     w2, 50
     mov     w3, 1
     bl      draw_horizontal_border_top
 
     // Position cursor for input
-    mov     w0, 18
+    mov     w0, 19
     mov     w1, 20
     bl      ansi_move_cursor
     adrp    x0, menu_prompt
@@ -1104,6 +1200,53 @@ bst_postorder_empty:
     bl      print_newline
 
 bst_postorder_done:
+    ldp     x29, x30, [sp], 16
+    ret
+
+// ============================================================================
+// FUNCTION: bst_levelorder_interactive
+// Interactive levelorder traversal display
+// ============================================================================
+bst_levelorder_interactive:
+    stp     x29, x30, [sp, -16]!
+    mov     x29, sp
+
+    bl      ansi_clear_screen
+
+    // Check if empty
+    adrp    x0, bst_node_count
+    add     x0, x0, :lo12:bst_node_count
+    ldr     w0, [x0]
+    cmp     w0, 0
+    b.le    bst_levelorder_empty
+
+    // Draw title
+    mov     w0, 2
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, bst_title
+    add     x0, x0, :lo12:bst_title
+    mov     w1, 80
+    bl      print_centered
+
+    // Do animated levelorder traversal
+    adrp    x0, bst_root
+    add     x0, x0, :lo12:bst_root
+    ldr     x0, [x0]
+    bl      bst_levelorder_animated
+
+    b       bst_levelorder_done
+
+bst_levelorder_empty:
+    mov     w0, 10
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, msg_empty_tree
+    add     x0, x0, :lo12:msg_empty_tree
+    bl      printf
+    bl      print_newline
+
+bst_levelorder_done:
     ldp     x29, x30, [sp], 16
     ret
 
@@ -1875,6 +2018,140 @@ postorder_anim_done:
     ret
 
 // ============================================================================
+// FUNCTION: bst_levelorder_animated
+// Level-order traversal with animation
+// Input:  x0 = root pointer
+// ============================================================================
+    .global bst_levelorder_animated
+bst_levelorder_animated:
+    cbz     x0, levelorder_anim_done         // Empty tree
+
+    // Allocate stack: 64 bytes locals + 512 bytes queue
+    sub     sp, sp, #576
+    stp     x29, x30, [sp, 0]                // Save fp/lr at sp + 0
+    mov     x29, sp                          // Set frame pointer
+    stp     x19, x20, [sp, 16]               // Save callee-saved at sp + 16
+    stp     x21, x22, [sp, 32]               // Save at sp + 32
+    stp     x23, x24, [sp, 48]               // Save at sp + 48 (now saving x24 too)
+
+    mov     x19, x0                          // x19 = current node (will be updated in loop)
+    add     x20, sp, #64                     // x20 = queue base (sp + 64)
+    mov     w21, 0                           // w21 = front index
+    mov     w22, 0                           // w22 = rear index
+    mov     w23, 0                           // w23 = count
+
+    // Get delay value
+    adrp    x0, tree_visual_delay
+    add     x0, x0, :lo12:tree_visual_delay
+    ldr     w23, [x0]                        // w23 = delay (temp use)
+    str     w23, [sp, 56]                    // Save delay at sp + 56
+    mov     w23, 0                           // Reset w23 to count
+
+    // Enqueue root
+    str     x19, [x20]                       // queue[0] = root
+    mov     w22, 1                           // rear = 1
+    mov     w23, 1                           // count = 1
+
+levelorder_anim_loop:
+    cmp     w23, 0                           // Check if queue empty
+    b.le    levelorder_anim_complete         // Exit if empty
+
+    // Dequeue front node
+    ldr     x19, [x20, w21, UXTW #3]         // x19 = queue[front]
+    add     w21, w21, 1                      // front++
+    and     w21, w21, 0x3F                   // front %= 64 (circular, for 64-element queue)
+    sub     w23, w23, 1                      // count--
+
+    // === SAVE ALL STATE TO CALLEE-SAVED REGISTERS ===
+    // (to survive potential corruption during function calls)
+    mov     x24, x19                         // x24 = backup current node
+    mov     w25, w21                         // w25 = backup front index
+    mov     w26, w22                         // w26 = backup rear index
+    mov     w27, w23                         // w27 = backup count
+
+    // Clear screen and display tree with current node highlighted
+    bl      ansi_clear_screen
+
+    // Draw title
+    mov     w0, 2
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, bst_title
+    add     x0, x0, :lo12:bst_title
+    mov     w1, 80
+    bl      print_centered
+
+    // Show levelorder label
+    mov     w0, 3
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, .Llevelorder_trav_msg
+    add     x0, x0, :lo12:.Llevelorder_trav_msg
+    bl      printf
+
+    // Draw tree
+    adrp    x0, bst_root
+    add     x0, x0, :lo12:bst_root
+    ldr     x0, [x0]
+    mov     w1, 6
+    mov     w2, 40
+    mov     w3, 20
+    mov     x4, x24                          // Highlight current node (from backup)
+    bl      bst_draw_node_recursive
+
+    // Show value being visited
+    mov     w0, 22
+    mov     w1, 1
+    bl      ansi_move_cursor
+    adrp    x0, .Lvisiting_msg
+    add     x0, x0, :lo12:.Lvisiting_msg
+    ldr     w1, [x24, NODE_DATA]             // Get node data from backup pointer
+    bl      printf
+
+    // Flush and delay
+    mov     x0, 0
+    bl      fflush
+
+    ldr     w0, [sp, 56]                     // Load delay from stack
+    bl      delay_ms
+
+    // === RESTORE ALL STATE FROM BACKUP REGISTERS ===
+    mov     x19, x24                         // Restore current node
+    mov     w21, w25                         // Restore front
+    mov     w22, w26                         // Restore rear
+    mov     w23, w27                         // Restore count
+
+    // Enqueue left child if exists
+    ldr     x1, [x19, NODE_LEFT]
+    cbz     x1, levelorder_anim_skip_left
+    str     x1, [x20, w22, UXTW #3]          // queue[rear] = left
+    add     w22, w22, 1                      // rear++
+    and     w22, w22, 0x3F                   // rear %= 64
+    add     w23, w23, 1                      // count++
+
+levelorder_anim_skip_left:
+    // Enqueue right child if exists
+    ldr     x1, [x19, NODE_RIGHT]
+    cbz     x1, levelorder_anim_skip_right
+    str     x1, [x20, w22, UXTW #3]          // queue[rear] = right
+    add     w22, w22, 1                      // rear++
+    and     w22, w22, 0x3F                   // rear %= 64
+    add     w23, w23, 1                      // count++
+
+levelorder_anim_skip_right:
+    b       levelorder_anim_loop
+
+levelorder_anim_complete:
+    ldp     x23, x24, [sp, 48]
+    ldp     x21, x22, [sp, 32]
+    ldp     x19, x20, [sp, 16]
+    ldp     x29, x30, [sp, 0]
+    add     sp, sp, #576                     // Deallocate stack
+
+levelorder_anim_done:
+    ret
+
+// ============================================================================
 // Format strings and helper messages
 // ============================================================================
     .data
@@ -1888,6 +2165,7 @@ fmt_newline:        .string "\n"
 .Linorder_trav_msg: .string "Inorder Traversal (Left-Root-Right)"
 .Lpreorder_trav_msg: .string "Preorder Traversal (Root-Left-Right)"
 .Lpostorder_trav_msg: .string "Postorder Traversal (Left-Right-Root)"
+.Llevelorder_trav_msg: .string "Levelorder Traversal (Breadth-First)"
 .Lbuilding_tree_msg: .string "Building Sample Tree..."
 .Linserted_val_msg: .string "Inserted: %d"
 .Lsample_complete:  .string "Sample tree initialization complete!"
