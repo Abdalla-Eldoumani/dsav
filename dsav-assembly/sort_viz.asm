@@ -48,6 +48,7 @@ menu_opt_0:         .string "[0] Back to Main Menu"
 
 menu_prompt:        .string "Enter your choice: "
 prompt_size:        .string "Enter array size (3-10): "
+prompt_speed:       .string "Enter animation speed in ms (100-2500): "
 prompt_continue:    .string "\n\x1b[33mPress Enter to start sorting...\x1b[0m"
 
 msg_sorted:         .string "\x1b[32mArray is now sorted!\x1b[0m"
@@ -483,6 +484,9 @@ sort_bubble_interactive:
     cmp     w0, 0
     b.le    sort_bubble_empty
 
+    // Get speed from user
+    bl      sort_get_speed
+
     // Reset highlights
     bl      sort_reset_highlights
 
@@ -647,6 +651,9 @@ sort_selection_interactive:
     cmp     w0, 0
     b.le    sort_selection_empty
 
+    // Get speed from user
+    bl      sort_get_speed
+
     bl      sort_reset_highlights
     bl      sort_display_array
 
@@ -804,6 +811,9 @@ sort_insertion_interactive:
     cmp     w0, 0
     b.le    sort_insertion_empty
 
+    // Get speed from user
+    bl      sort_get_speed
+
     bl      sort_reset_highlights
     bl      sort_display_array
 
@@ -941,6 +951,43 @@ insertion_done:
     ret
 
 // ============================================================================
+// FUNCTION: sort_get_speed
+// Prompts user to enter animation speed
+// Parameters: none
+// Returns: none (updates sort_delay)
+// ============================================================================
+    .global sort_get_speed
+sort_get_speed:
+    stp     x29, x30, [sp, -32]!
+    mov     x29, sp
+    str     x19, [sp, 16]
+
+    // Position cursor for prompt
+    mov     w0, 22
+    mov     w1, 1
+    bl      ansi_move_cursor
+
+    // Prompt for speed
+    adrp    x0, prompt_speed
+    add     x0, x0, :lo12:prompt_speed
+    bl      printf
+
+    // Read speed with range validation (100-2500 ms)
+    mov     w0, 100                          // min
+    mov     w1, 2500                         // max
+    bl      read_int_range
+    mov     w19, w0                          // Save speed
+
+    // Store in sort_delay
+    adrp    x0, sort_delay
+    add     x0, x0, :lo12:sort_delay
+    str     w19, [x0]
+
+    ldr     x19, [sp, 16]
+    ldp     x29, x30, [sp], 32
+    ret
+
+// ============================================================================
 // FUNCTION: sort_reset_highlights
 // Resets all highlight indices
 // Parameters: none
@@ -995,6 +1042,9 @@ sort_merge_interactive:
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    merge_empty
+
+    // Get speed from user
+    bl      sort_get_speed
 
     // Clear screen and display array
     bl      ansi_clear_screen
@@ -1253,6 +1303,9 @@ sort_quick_interactive:
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    quick_empty
+
+    // Get speed from user
+    bl      sort_get_speed
 
     // Clear screen and display array
     bl      ansi_clear_screen
