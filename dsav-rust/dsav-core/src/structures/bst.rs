@@ -67,6 +67,72 @@ impl VisualizableBST {
         }
     }
 
+    pub fn delete(&mut self, value: i32) -> bool {
+        let (new_root, deleted) = Self::delete_recursive(self.root.take(), value);
+        self.root = new_root;
+        if deleted {
+            self.size -= 1;
+        }
+        deleted
+    }
+
+    fn delete_recursive(node: Option<Box<Node>>, value: i32) -> (Option<Box<Node>>, bool) {
+        match node {
+            None => (None, false),
+            Some(mut n) => {
+                if value < n.value {
+                    let (new_left, deleted) = Self::delete_recursive(n.left.take(), value);
+                    n.left = new_left;
+                    (Some(n), deleted)
+                } else if value > n.value {
+                    let (new_right, deleted) = Self::delete_recursive(n.right.take(), value);
+                    n.right = new_right;
+                    (Some(n), deleted)
+                } else {
+                    // Node to delete found
+                    match (n.left.take(), n.right.take()) {
+                        (None, None) => {
+                            // Case 1: No children
+                            (None, true)
+                        }
+                        (Some(left), None) => {
+                            // Case 2: Only left child
+                            (Some(left), true)
+                        }
+                        (None, Some(right)) => {
+                            // Case 2: Only right child
+                            (Some(right), true)
+                        }
+                        (Some(left), Some(right)) => {
+                            // Case 3: Two children
+                            // Find minimum in right subtree (inorder successor)
+                            let (min_value, new_right) = Self::extract_min(right);
+                            let mut new_node = Box::new(Node::new(min_value));
+                            new_node.left = Some(left);
+                            new_node.right = new_right;
+                            (Some(new_node), true)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn extract_min(mut node: Box<Node>) -> (i32, Option<Box<Node>>) {
+        match node.left.take() {
+            None => {
+                // This is the minimum node
+                let value = node.value;
+                (value, node.right.take())
+            }
+            Some(left) => {
+                let (min_value, new_left) = Self::extract_min(left);
+                node.left = new_left;
+                (min_value, Some(node))
+            }
+        }
+    }
+
     pub fn search(&self, value: i32) -> bool {
         Self::search_recursive(&self.root, value)
     }
@@ -185,6 +251,91 @@ impl Visualizable for VisualizableBST {
                         description: format!("Inserted {} successfully", value),
                         highlight_indices: vec![],
                         active_indices: vec![idx],
+                        metadata: serde_json::json!({}),
+                    });
+                }
+
+                Ok(steps)
+            }
+
+            Operation::Delete(value_usize) => {
+                let value = value_usize as i32; // Convert usize to i32 for BST value
+                let mut steps = Vec::new();
+
+                steps.push(Step {
+                    description: format!("Deleting {} from BST", value),
+                    highlight_indices: vec![],
+                    active_indices: vec![],
+                    metadata: serde_json::json!({
+                        "operation": "delete",
+                        "value": value
+                    }),
+                });
+
+                // First, search for the node to visualize the path
+                let mut current = self.root.as_ref();
+                let mut idx = 0;
+                let mut found = false;
+
+                while let Some(node) = current {
+                    steps.push(Step {
+                        description: format!("Checking node with value {}", node.value),
+                        highlight_indices: vec![idx],
+                        active_indices: vec![],
+                        metadata: serde_json::json!({}),
+                    });
+
+                    if value == node.value {
+                        found = true;
+                        let has_left = node.left.is_some();
+                        let has_right = node.right.is_some();
+
+                        let case_description = match (has_left, has_right) {
+                            (false, false) => "leaf node (no children)".to_string(),
+                            (true, false) => "node with only left child".to_string(),
+                            (false, true) => "node with only right child".to_string(),
+                            (true, true) => "node with two children (will replace with inorder successor)".to_string(),
+                        };
+
+                        steps.push(Step {
+                            description: format!("Found {} - deleting {}", value, case_description),
+                            highlight_indices: vec![],
+                            active_indices: vec![idx],
+                            metadata: serde_json::json!({
+                                "found": true,
+                                "index": idx
+                            }),
+                        });
+                        break;
+                    } else if value < node.value {
+                        current = node.left.as_ref();
+                        idx = idx * 2 + 1;
+                    } else {
+                        current = node.right.as_ref();
+                        idx = idx * 2 + 2;
+                    }
+                }
+
+                if !found {
+                    steps.push(Step {
+                        description: format!("Value {} not found in tree, cannot delete", value),
+                        highlight_indices: vec![],
+                        active_indices: vec![],
+                        metadata: serde_json::json!({
+                            "found": false
+                        }),
+                    });
+                    return Ok(steps);
+                }
+
+                // Perform the deletion
+                let deleted = self.delete(value);
+
+                if deleted {
+                    steps.push(Step {
+                        description: format!("Successfully deleted {} from tree", value),
+                        highlight_indices: vec![],
+                        active_indices: vec![],
                         metadata: serde_json::json!({}),
                     });
                 }
