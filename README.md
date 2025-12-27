@@ -10,8 +10,9 @@ This project has three versions:
 Terminal-based visualizer written in ARMv8 assembly. Shows colored animations using ANSI escape codes.
 
 **Data Structures:** Array, Stack, Queue, Linked List, Binary Search Tree
-**Sorting:** Bubble, Selection, Insertion, Merge, Quick Sort
-**Searching:** Linear, Binary Search
+**Sorting:** Bubble, Selection, Insertion, Merge, Quick Sort (with detailed step-by-step animations)
+**Searching:** Linear, Binary Search (with smart sorted-array detection)
+**Features:** User-configurable animation speed (100-2500ms), animated search traversals, table-style displays
 
 **Runs on:** ARM64 Linux (native or WSL with ARM compiler)
 
