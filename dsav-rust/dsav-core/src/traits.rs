@@ -16,6 +16,7 @@ pub struct Step {
 pub enum Operation {
     Insert(usize, i32),
     Delete(usize),
+    Update(usize, i32),
     Search(i32),
     BinarySearch(i32),
     Traverse,
@@ -28,6 +29,8 @@ pub enum Operation {
     Dequeue,
     BubbleSort,
     InsertionSort,
+    SelectionSort,
+    MergeSort,
     QuickSort,
 }
 
