@@ -42,9 +42,10 @@ Contains basic stack visualizer only. Not feature-complete.
 ### 3. Rust Version (`dsav-rust/`)
 Memory-safe implementation with modern graphical interface using egui and OpenGL.
 
-**Data Structures:** Array, Stack, Queue, Linked List, Binary Search Tree
-**Features:** Step-by-step animation, interactive controls, scrolling panels
-**Graphics:** OpenGL 3.3, egui for UI
+**Data Structures:** Array (insert, delete, update, search), Stack (push, pop, peek), Queue (enqueue, dequeue, peek), Linked List (insert, delete, update, search, traverse), Binary Search Tree (insert, delete, search, traversals)
+**Sorting:** Bubble, Selection, Insertion, Merge, Quick Sort
+**Searching:** Linear Search, Binary Search (auto-sorts array)
+**Graphics:** OpenGL 3.3, egui for UI, scrolling panels, adjustable animation speed
 **Runs on:** Windows, Linux, macOS (any platform with OpenGL 3.3+)
 
 ## Quick Start
