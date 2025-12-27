@@ -9,6 +9,8 @@
 #include <iomanip>
 #include <cmath>
 #include <queue>
+#include <random>
+#include <algorithm>
 
 namespace dsav {
 
@@ -53,6 +55,63 @@ void BSTVisualizer::renderVisualization() {
         ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::mantle))
     );
 
+    // Calculate smaller hitbox (with padding on all sides)
+    const float padding = 20.0f;
+    ImVec2 hitboxMin = ImVec2(canvasPos.x + padding, canvasPos.y + padding);
+    ImVec2 hitboxMax = ImVec2(canvasPos.x + canvasSize.x - padding, canvasPos.y + canvasSize.y - padding - 40.0f);
+
+    // Camera controls - Mouse interaction within smaller hitbox
+    ImVec2 mousePos = ImGui::GetMousePos();
+    bool isInHitbox = (mousePos.x >= hitboxMin.x && mousePos.x <= hitboxMax.x &&
+                       mousePos.y >= hitboxMin.y && mousePos.y <= hitboxMax.y);
+
+    if (isInHitbox) {
+        // Panning - Drag with mouse
+        if (ImGui::IsMouseDragging(ImGuiMouseButton_Left, 1.0f)) {
+            if (!m_isDragging) {
+                m_isDragging = true;
+                m_lastMousePos = mousePos;
+            }
+            ImVec2 delta = ImVec2(mousePos.x - m_lastMousePos.x, mousePos.y - m_lastMousePos.y);
+            m_cameraOffsetX += delta.x;
+            m_cameraOffsetY += delta.y;
+            m_lastMousePos = mousePos;
+
+            // Prevent window from being dragged when we're panning the canvas
+            ImGui::SetWindowFocus();
+        } else {
+            m_isDragging = false;
+        }
+
+        // Zooming - Ctrl + Scroll
+        ImGuiIO& io = ImGui::GetIO();
+        if (io.KeyCtrl && io.MouseWheel != 0.0f) {
+            float zoomDelta = io.MouseWheel * 0.1f;
+            float oldZoom = m_zoomLevel;
+            m_zoomLevel += zoomDelta;
+            m_zoomLevel = std::clamp(m_zoomLevel, 0.3f, 3.0f);
+
+            // Zoom focus on mouse cursor position
+            float ratio = (m_zoomLevel - oldZoom) / oldZoom;
+            float relativeX = mousePos.x - canvasPos.x - m_cameraOffsetX;
+            float relativeY = mousePos.y - canvasPos.y - m_cameraOffsetY;
+            m_cameraOffsetX -= relativeX * ratio;
+            m_cameraOffsetY -= relativeY * ratio;
+        }
+        // Scrolling - Mouse wheel (vertical)
+        else if (io.MouseWheel != 0.0f) {
+            m_cameraOffsetY += io.MouseWheel * 30.0f;
+        }
+        // Horizontal scrolling - Shift + Mouse wheel
+        else if (io.KeyShift && io.MouseWheelH != 0.0f) {
+            m_cameraOffsetX += io.MouseWheelH * 30.0f;
+        }
+    }
+
+    // Apply camera offset
+    float horizontalOffset = m_cameraOffsetX;
+    float verticalOffset = m_cameraOffsetY;
+
     // Draw connections first (so they appear behind nodes)
     auto root = m_bst.root();
     if (root) {
@@ -63,18 +122,23 @@ void BSTVisualizer::renderVisualization() {
             auto parentIt = m_nodePositions.find(node->data);
             if (parentIt == m_nodePositions.end()) return;
 
+            // Apply zoom and camera offset to parent position
+            float scaledParentX = parentIt->second.x * m_zoomLevel;
+            float scaledParentY = parentIt->second.y * m_zoomLevel;
             ImVec2 parentPos = ImVec2(
-                canvasPos.x + parentIt->second.x,
-                canvasPos.y + parentIt->second.y
+                canvasPos.x + scaledParentX + horizontalOffset,
+                canvasPos.y + scaledParentY + verticalOffset
             );
 
             // Draw connection to left child
             if (node->left) {
                 auto leftIt = m_nodePositions.find(node->left->data);
                 if (leftIt != m_nodePositions.end()) {
+                    float scaledLeftX = leftIt->second.x * m_zoomLevel;
+                    float scaledLeftY = leftIt->second.y * m_zoomLevel;
                     ImVec2 leftPos = ImVec2(
-                        canvasPos.x + leftIt->second.x,
-                        canvasPos.y + leftIt->second.y
+                        canvasPos.x + scaledLeftX + horizontalOffset,
+                        canvasPos.y + scaledLeftY + verticalOffset
                     );
                     drawConnection(drawList, parentPos, leftPos,
                                  ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::overlay0)));
@@ -85,9 +149,11 @@ void BSTVisualizer::renderVisualization() {
             if (node->right) {
                 auto rightIt = m_nodePositions.find(node->right->data);
                 if (rightIt != m_nodePositions.end()) {
+                    float scaledRightX = rightIt->second.x * m_zoomLevel;
+                    float scaledRightY = rightIt->second.y * m_zoomLevel;
                     ImVec2 rightPos = ImVec2(
-                        canvasPos.x + rightIt->second.x,
-                        canvasPos.y + rightIt->second.y
+                        canvasPos.x + scaledRightX + horizontalOffset,
+                        canvasPos.y + scaledRightY + verticalOffset
                     );
                     drawConnection(drawList, parentPos, rightPos,
                                  ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::overlay0)));
@@ -102,23 +168,27 @@ void BSTVisualizer::renderVisualization() {
     }
 
     // Draw nodes
+    float scaledRadius = NODE_RADIUS * m_zoomLevel;
     for (const auto& vnode : m_visualNodes) {
+        // Apply zoom and camera offset to node position
+        float scaledX = vnode.position.x * m_zoomLevel;
+        float scaledY = vnode.position.y * m_zoomLevel;
         ImVec2 center = ImVec2(
-            canvasPos.x + vnode.position.x,
-            canvasPos.y + vnode.position.y
+            canvasPos.x + scaledX + horizontalOffset,
+            canvasPos.y + scaledY + verticalOffset
         );
 
         // Draw circle
         drawList->AddCircleFilled(
             center,
-            NODE_RADIUS,
+            scaledRadius,
             ImGui::ColorConvertFloat4ToU32(colors::toImGui(vnode.color))
         );
 
         // Draw border
         drawList->AddCircle(
             center,
-            NODE_RADIUS,
+            scaledRadius,
             ImGui::ColorConvertFloat4ToU32(colors::toImGui(vnode.borderColor)),
             0,
             2.0f
@@ -149,6 +219,17 @@ void BSTVisualizer::renderVisualization() {
             "BST is empty. Use Insert to add nodes."
         );
     }
+
+    // Draw hint text at bottom showing controls and zoom level
+    ImVec2 hintPos = ImVec2(canvasPos.x + 10.0f, canvasPos.y + canvasSize.y - 30.0f);
+    std::ostringstream hintStream;
+    hintStream << "Drag: Pan | Scroll: Move | Ctrl+Scroll: Zoom | Zoom: "
+               << std::fixed << std::setprecision(1) << (m_zoomLevel * 100.0f) << "%";
+    drawList->AddText(
+        hintPos,
+        ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::overlay1)),
+        hintStream.str().c_str()
+    );
 }
 
 void BSTVisualizer::renderControls() {
@@ -167,7 +248,8 @@ void BSTVisualizer::renderControls() {
         "Traverse: Inorder",
         "Traverse: Preorder",
         "Traverse: Postorder",
-        "Traverse: Level-order"
+        "Traverse: Level-order",
+        "Initialize Random"
     };
     int currentModeIdx = static_cast<int>(m_currentMode);
     if (ImGui::Combo("##Mode", &currentModeIdx, modes, IM_ARRAYSIZE(modes))) {
@@ -185,6 +267,11 @@ void BSTVisualizer::renderControls() {
         m_currentMode == OperationMode::Delete ||
         m_currentMode == OperationMode::Search) {
         ImGui::InputInt("Value", &m_inputValue);
+    }
+    // Count input (for Initialize)
+    else if (m_currentMode == OperationMode::Initialize) {
+        ImGui::InputInt("Count (1-20)", &m_initCount);
+        m_initCount = std::clamp(m_initCount, 1, 20);
     }
 
     ImGui::PopItemWidth();
@@ -233,6 +320,10 @@ void BSTVisualizer::renderControls() {
             tooltipText = "Level-order traversal (Breadth-first)";
             canExecute = !m_bst.isEmpty();
             break;
+        case OperationMode::Initialize:
+            buttonLabel = "Initialize Random";
+            tooltipText = "Create BST with random values";
+            break;
     }
 
     if (!canExecute) {
@@ -261,6 +352,9 @@ void BSTVisualizer::renderControls() {
                 break;
             case OperationMode::TraverseLevelOrder:
                 traverseLevelOrder();
+                break;
+            case OperationMode::Initialize:
+                initializeRandom(m_initCount);
                 break;
         }
     }
@@ -709,6 +803,50 @@ std::vector<int> BSTVisualizer::collectTraversalOrder(const std::string& type) {
     }
 
     return result;
+}
+
+void BSTVisualizer::initializeRandom(size_t count) {
+    // Clear existing tree and animations
+    m_bst.clear();
+    m_visualNodes.clear();
+    m_nodePositions.clear();
+    m_animator.clear();
+
+    // Reset camera
+    m_cameraOffsetX = 0.0f;
+    m_cameraOffsetY = 0.0f;
+    m_zoomLevel = 1.0f;
+
+    // Generate unique random values in a VECTOR (not set, to avoid sorting)
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(1, 99);
+    std::vector<int> values;
+
+    // Keep generating until we have enough unique values
+    while (values.size() < count) {
+        int val = dis(gen);
+        // Check if value is already in vector
+        if (std::find(values.begin(), values.end(), val) == values.end()) {
+            values.push_back(val);
+        }
+    }
+
+    // Shuffle the values to ensure random insertion order
+    std::shuffle(values.begin(), values.end(), gen);
+
+    // Insert values into BST in shuffled order
+    for (int value : values) {
+        m_bst.insert(value);
+    }
+
+    // Sync visuals
+    syncVisuals();
+
+    // Update status immediately (no animation blocking)
+    std::ostringstream oss;
+    oss << "Initialized BST with " << count << " nodes, Height: " << m_bst.height();
+    m_statusText = oss.str();
 }
 
 } // namespace dsav
