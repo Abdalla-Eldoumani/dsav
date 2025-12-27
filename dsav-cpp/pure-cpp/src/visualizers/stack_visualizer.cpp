@@ -7,6 +7,8 @@
 #include "ui_components.hpp"
 #include <sstream>
 #include <iomanip>
+#include <random>
+#include <ctime>
 
 namespace dsav {
 
@@ -47,35 +49,139 @@ void StackVisualizer::renderVisualization() {
         ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::mantle))
     );
 
-    // Calculate total height of full stack capacity
-    float totalStackHeight = m_stack.capacity() * ELEMENT_HEIGHT +
-                             (m_stack.capacity() - 1) * ELEMENT_SPACING;
+    // Calculate scaled dimensions with zoom
+    float scaledElementWidth = ELEMENT_WIDTH * m_zoomLevel;
+    float scaledElementHeight = ELEMENT_HEIGHT * m_zoomLevel;
+    float scaledSpacing = ELEMENT_SPACING * m_zoomLevel;
+
+    // Calculate total height of full stack capacity with zoom
+    float totalStackHeight = m_stack.capacity() * scaledElementHeight +
+                             (m_stack.capacity() - 1) * scaledSpacing;
 
     // Calculate bottom padding to center the stack vertically
     float bottomPadding = (canvasSize.y - totalStackHeight) / 2.0f;
-
-    // Ensure minimum padding
     if (bottomPadding < 20.0f) {
         bottomPadding = 20.0f;
     }
 
-    // Lambda to convert local coordinates to screen coordinates
-    // Local y=0 is at bottom, grows upward -> Screen y grows downward
-    auto toScreenPos = [&](const glm::vec2& localPos) -> ImVec2 {
+    // Apply camera offset
+    bottomPadding += m_cameraOffsetY;
+
+    // Calculate interaction hitbox (smaller, only where elements are)
+    float hitboxPadding = 40.0f;
+    ImVec2 hitboxPos = ImVec2(
+        canvasPos.x + START_X - hitboxPadding,
+        canvasPos.y + std::max(20.0f, canvasSize.y - bottomPadding - totalStackHeight - hitboxPadding)
+    );
+    ImVec2 hitboxSize = ImVec2(
+        scaledElementWidth + hitboxPadding * 2 + 100.0f, // Include space for labels
+        std::min(canvasSize.y - 40.0f, totalStackHeight + hitboxPadding * 2)
+    );
+
+    // Make sure hitbox stays within canvas
+    if (hitboxPos.y < canvasPos.y + 20.0f) {
+        hitboxSize.y -= (canvasPos.y + 20.0f - hitboxPos.y);
+        hitboxPos.y = canvasPos.y + 20.0f;
+    }
+    if (hitboxPos.y + hitboxSize.y > canvasPos.y + canvasSize.y - 20.0f) {
+        hitboxSize.y = canvasPos.y + canvasSize.y - 20.0f - hitboxPos.y;
+    }
+
+    // Set cursor position for the hitbox
+    ImGui::SetCursorScreenPos(hitboxPos);
+    ImGui::InvisibleButton("stack_canvas", hitboxSize);
+    bool isHovered = ImGui::IsItemHovered();
+    bool isActive = ImGui::IsItemActive();
+
+    // Handle mouse drag for panning
+    if (isActive && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+        if (!m_isDragging) {
+            m_isDragging = true;
+            m_lastMousePos = ImGui::GetMousePos();
+        } else {
+            ImVec2 currentMousePos = ImGui::GetMousePos();
+            float deltaY = currentMousePos.y - m_lastMousePos.y;
+            m_cameraOffsetY += deltaY;
+            m_lastMousePos = currentMousePos;
+        }
+    } else {
+        m_isDragging = false;
+    }
+
+    // Handle mouse wheel
+    if (isHovered) {
+        float wheel = ImGui::GetIO().MouseWheel;
+        if (wheel != 0.0f) {
+            // Check if Ctrl is held for zoom
+            if (ImGui::GetIO().KeyCtrl) {
+                // Zoom in/out
+                float oldZoom = m_zoomLevel;
+                float zoomDelta = wheel * 0.1f;
+                m_zoomLevel += zoomDelta;
+
+                // Clamp zoom level
+                if (m_zoomLevel < 0.3f) m_zoomLevel = 0.3f;
+                if (m_zoomLevel > 3.0f) m_zoomLevel = 3.0f;
+
+                // Adjust camera offset to zoom toward mouse position
+                ImVec2 mousePos = ImGui::GetMousePos();
+                float mouseRelativeY = mousePos.y - canvasPos.y - (canvasSize.y - bottomPadding);
+                float zoomRatio = m_zoomLevel / oldZoom;
+
+                // Adjust offset so zoom focuses on mouse position
+                m_cameraOffsetY = m_cameraOffsetY * zoomRatio + mouseRelativeY * (1.0f - zoomRatio);
+            } else {
+                // Regular vertical scrolling
+                m_cameraOffsetY += wheel * 50.0f;
+            }
+        }
+    }
+
+    // Recalculate with potentially updated zoom
+    scaledElementWidth = ELEMENT_WIDTH * m_zoomLevel;
+    scaledElementHeight = ELEMENT_HEIGHT * m_zoomLevel;
+    scaledSpacing = ELEMENT_SPACING * m_zoomLevel;
+
+    totalStackHeight = m_stack.capacity() * scaledElementHeight +
+                      (m_stack.capacity() - 1) * scaledSpacing;
+
+    bottomPadding = (canvasSize.y - totalStackHeight) / 2.0f;
+    if (bottomPadding < 20.0f) {
+        bottomPadding = 20.0f;
+    }
+    bottomPadding += m_cameraOffsetY;
+
+    // Clamp camera offset to prevent scrolling too far
+    float minOffset = -totalStackHeight + canvasSize.y - 40.0f;
+    float maxOffset = 0.0f;
+    if (minOffset > maxOffset) minOffset = maxOffset;
+
+    if (m_cameraOffsetY > (maxOffset + ((canvasSize.y - totalStackHeight) / 2.0f) - 20.0f)) {
+        m_cameraOffsetY = maxOffset + ((canvasSize.y - totalStackHeight) / 2.0f) - 20.0f;
+        bottomPadding = maxOffset + (canvasSize.y - totalStackHeight) / 2.0f - 20.0f + 20.0f;
+    }
+    if (bottomPadding - (canvasSize.y - totalStackHeight) / 2.0f < minOffset) {
+        m_cameraOffsetY = minOffset - ((canvasSize.y - totalStackHeight) / 2.0f);
+        bottomPadding = minOffset + (canvasSize.y - totalStackHeight) / 2.0f;
+    }
+
+    // Lambda to convert local coordinates to screen coordinates with zoom
+    auto toScreenPos = [&](const glm::vec2& localPos, float elemHeight) -> ImVec2 {
+        float scaledY = localPos.y * m_zoomLevel;
         return ImVec2(
-            canvasPos.x + localPos.x,
-            canvasPos.y + canvasSize.y - bottomPadding - localPos.y - ELEMENT_HEIGHT
+            canvasPos.x + START_X,
+            canvasPos.y + canvasSize.y - bottomPadding - scaledY - elemHeight
         );
     };
 
     // Draw capacity indicator (ghost boxes showing max capacity)
     for (size_t i = 0; i < m_stack.capacity(); ++i) {
         glm::vec2 localPos = calculatePosition(i);
-        ImVec2 screenPos = toScreenPos(localPos);
+        ImVec2 screenPos = toScreenPos(localPos, scaledElementHeight);
 
         VisualElement ghost;
         ghost.position = glm::vec2(screenPos.x, screenPos.y);
-        ghost.size = glm::vec2(ELEMENT_WIDTH, ELEMENT_HEIGHT);
+        ghost.size = glm::vec2(scaledElementWidth, scaledElementHeight);
         ghost.color = colors::withAlpha(colors::mocha::surface1, 0.3f);
         ghost.borderColor = colors::withAlpha(colors::mocha::overlay0, 0.5f);
         ghost.borderWidth = 1.0f;
@@ -83,22 +189,24 @@ void StackVisualizer::renderVisualization() {
         renderElement(drawList, ghost);
     }
 
-    // Draw actual stack elements
-    for (auto& elem : m_elements) {
-        ImVec2 screenPos = toScreenPos(elem.position);
+    // Draw actual stack elements with zoom
+    for (size_t i = 0; i < m_elements.size(); ++i) {
+        glm::vec2 localPos = calculatePosition(i);
+        ImVec2 screenPos = toScreenPos(localPos, scaledElementHeight);
 
-        VisualElement renderElem = elem;
+        VisualElement renderElem = m_elements[i];
         renderElem.position = glm::vec2(screenPos.x, screenPos.y);
+        renderElem.size = glm::vec2(scaledElementWidth, scaledElementHeight);
         renderElement(drawList, renderElem);
     }
 
     // Draw "TOP" label
     if (!m_stack.isEmpty()) {
         glm::vec2 topLocalPos = calculatePosition(m_stack.size() - 1);
-        ImVec2 topScreenPos = toScreenPos(topLocalPos);
+        ImVec2 topScreenPos = toScreenPos(topLocalPos, scaledElementHeight);
         ImVec2 labelPos = ImVec2(
-            topScreenPos.x + ELEMENT_WIDTH + 20.0f,
-            topScreenPos.y + ELEMENT_HEIGHT / 2.0f - 10.0f
+            topScreenPos.x + scaledElementWidth + 20.0f,
+            topScreenPos.y + scaledElementHeight / 2.0f - 10.0f
         );
         drawList->AddText(
             labelPos,
@@ -109,16 +217,34 @@ void StackVisualizer::renderVisualization() {
 
     // Draw base label
     glm::vec2 baseLocalPos = calculatePosition(0);
-    ImVec2 baseScreenPos = toScreenPos(baseLocalPos);
+    ImVec2 baseScreenPos = toScreenPos(baseLocalPos, scaledElementHeight);
     ImVec2 basePos = ImVec2(
         baseScreenPos.x - 60.0f,
-        baseScreenPos.y + ELEMENT_HEIGHT / 2.0f - 10.0f
+        baseScreenPos.y + scaledElementHeight / 2.0f - 10.0f
     );
     drawList->AddText(
         basePos,
         ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::overlay1)),
         "BASE →"
     );
+
+    // Show interaction hints
+    if (!m_stack.isEmpty()) {
+        std::string hintText = "Drag to pan | Scroll to move | Ctrl+Scroll to zoom";
+        if (m_zoomLevel != 1.0f) {
+            hintText += " (Zoom: " + std::to_string(static_cast<int>(m_zoomLevel * 100)) + "%)";
+        }
+        ImVec2 hintSize = ImGui::CalcTextSize(hintText.c_str());
+        ImVec2 hintPos = ImVec2(
+            canvasPos.x + canvasSize.x - hintSize.x - 10.0f,
+            canvasPos.y + 10.0f
+        );
+        drawList->AddText(
+            hintPos,
+            ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::overlay0)),
+            hintText.c_str()
+        );
+    }
 }
 
 void StackVisualizer::renderControls() {
@@ -156,6 +282,27 @@ void StackVisualizer::renderControls() {
     }
     ImGui::EndDisabled();
     ui::Tooltip("View top element without removing");
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // Initialize operation
+    ImGui::Text("Initialize:");
+    ImGui::PushItemWidth(150.0f);
+    ImGui::InputInt("Count", &m_initCount);
+    if (m_initCount < 1) m_initCount = 1;
+    if (m_initCount > static_cast<int>(m_stack.capacity())) {
+        m_initCount = static_cast<int>(m_stack.capacity());
+    }
+    ImGui::PopItemWidth();
+
+    ImGui::BeginDisabled(isAnimating());
+    if (ui::ButtonPrimary("Initialize Random", ImVec2(200, 0))) {
+        initializeRandom(static_cast<size_t>(m_initCount));
+    }
+    ImGui::EndDisabled();
+    ui::Tooltip("Fill stack with random values (clears existing stack)");
 
     ImGui::Separator();
 
@@ -295,6 +442,56 @@ void StackVisualizer::peekValue() {
             m_animator.enqueue(restore);
         }
     }
+}
+
+void StackVisualizer::initializeRandom(size_t count) {
+    // Clear existing stack
+    m_stack.clear();
+    m_elements.clear();
+    m_animator.clear();
+
+    // Clamp count to capacity
+    if (count > m_stack.capacity()) {
+        count = m_stack.capacity();
+    }
+
+    // Update status
+    std::ostringstream oss;
+    oss << "Initializing stack with " << count << " random elements...";
+    m_statusText = oss.str();
+
+    // Generate random values
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(1, 99);
+
+    // Populate stack with random values
+    for (size_t i = 0; i < count; ++i) {
+        m_stack.push(dis(gen));
+    }
+
+    // Sync visuals
+    syncVisuals();
+
+    // Animate each element appearing with a cascade effect from bottom to top
+    for (size_t i = 0; i < m_elements.size(); ++i) {
+        auto& elem = m_elements[i];
+
+        // Flash to show appearance
+        Animation fadeIn = createColorAnimation(elem.color, colors::semantic::elementBase, 0.15f);
+        if (i == m_elements.size() - 1) {
+            fadeIn.onComplete = [this, count]() {
+                std::ostringstream oss;
+                oss << "Initialized stack with " << count << " random elements";
+                m_statusText = oss.str();
+            };
+        }
+        m_animator.enqueue(fadeIn);
+    }
+
+    // Reset camera position and zoom
+    m_cameraOffsetY = 0.0f;
+    m_zoomLevel = 1.0f;
 }
 
 void StackVisualizer::play() {
