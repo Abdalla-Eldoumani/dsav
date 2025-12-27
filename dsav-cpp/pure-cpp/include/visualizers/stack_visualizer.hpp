@@ -54,6 +54,7 @@ public:
     void pushValue(int value);
     void popValue();
     void peekValue();
+    void initializeRandom(size_t count);
 
 private:
     /**
@@ -83,6 +84,13 @@ private:
     int m_inputValue = 0;                      ///< Value to push (from UI input)
     bool m_isPaused = true;                    ///< Pause state
     float m_speed = 1.0f;                      ///< Animation speed multiplier
+    int m_initCount = 16;                      ///< Number of elements for random initialization
+
+    // Camera/viewport control for scrolling/panning
+    float m_cameraOffsetY = 0.0f;              ///< Vertical camera offset for panning
+    float m_zoomLevel = 1.0f;                  ///< Zoom level (1.0 = normal, >1 = zoomed in, <1 = zoomed out)
+    bool m_isDragging = false;                 ///< Mouse drag state for panning
+    ImVec2 m_lastMousePos;                     ///< Last mouse position for drag delta
 
     // Visual constants
     static constexpr float ELEMENT_WIDTH = 120.0f;
