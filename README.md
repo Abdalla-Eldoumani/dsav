@@ -22,8 +22,18 @@ OpenGL-based graphical visualizer with two implementations:
 #### Pure C++ (`pure-cpp/`)
 Everything written in C++. Works on any system with OpenGL support.
 
+**Recent updates:**
+- Camera controls (pan, zoom, scroll) for all visualizers
+- Random initialization for data structures
+- Improved merge sort visualization with subarray highlighting
+- Fixed window management (no overlapping windows)
+- Linked list HEAD indicator points directly to first node
+- Linked list NULL displayed as actual node box
+- BST random initialization creates balanced trees
+
 #### Assembly-Linked (`asm-linked/`)
 C++ handles graphics, assembly handles data structure operations. Shows how to call assembly code from C++.
+Contains basic stack visualizer only. Not feature-complete.
 
 **Data Structures:** Same as assembly version
 **Graphics:** OpenGL 3.3, Dear ImGui for controls
@@ -97,7 +107,7 @@ dsav/
 ## Notes
 
 - Assembly version is for learning low-level programming
-- Pure C++ version works on any modern system
-- Assembly-linked version shows C++/Assembly integration
+- Pure C++ version is feature-complete and works on any modern system
+- Assembly-linked version shows C++/Assembly integration (proof-of-concept only)
 - Rust version demonstrates memory safety and modern UI
-- All versions have identical features and behavior
+- All complete versions have identical features and behavior
