@@ -7,6 +7,8 @@
 #include "ui_components.hpp"
 #include <sstream>
 #include <iomanip>
+#include <random>
+#include <ctime>
 
 namespace dsav {
 
@@ -47,24 +49,131 @@ void QueueVisualizer::renderVisualization() {
         ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::mantle))
     );
 
-    // Calculate total width of queue capacity
-    float totalQueueWidth = m_queue.capacity() * ELEMENT_WIDTH +
-                            (m_queue.capacity() - 1) * ELEMENT_SPACING;
+    // Calculate scaled dimensions with zoom
+    float scaledElementWidth = ELEMENT_WIDTH * m_zoomLevel;
+    float scaledElementHeight = ELEMENT_HEIGHT * m_zoomLevel;
+    float scaledSpacing = ELEMENT_SPACING * m_zoomLevel;
 
-    // Calculate horizontal offset to center the queue
+    // Calculate total width with zoom applied
+    float totalQueueWidth = m_queue.capacity() * scaledElementWidth +
+                            (m_queue.capacity() - 1) * scaledSpacing;
+
+    // Calculate horizontal offset for centering
     float horizontalOffset = (canvasSize.x - totalQueueWidth) / 2.0f;
-
-    // Ensure minimum padding
     if (horizontalOffset < 20.0f) {
         horizontalOffset = 20.0f;
     }
 
-    // Draw capacity indicator (ghost boxes showing circular buffer)
+    // Apply camera offset
+    horizontalOffset += m_cameraOffsetX;
+
+    // Calculate interaction hitbox (smaller, only where elements are)
+    float hitboxPadding = 40.0f;
+    ImVec2 hitboxPos = ImVec2(
+        canvasPos.x + std::max(20.0f, horizontalOffset - hitboxPadding),
+        canvasPos.y + START_Y * m_zoomLevel - hitboxPadding
+    );
+    ImVec2 hitboxSize = ImVec2(
+        std::min(canvasSize.x - 40.0f, totalQueueWidth + hitboxPadding * 2),
+        scaledElementHeight + 100.0f + hitboxPadding * 2 // Include space for labels
+    );
+
+    // Make sure hitbox stays within canvas
+    if (hitboxPos.x < canvasPos.x + 20.0f) {
+        hitboxSize.x -= (canvasPos.x + 20.0f - hitboxPos.x);
+        hitboxPos.x = canvasPos.x + 20.0f;
+    }
+    if (hitboxPos.x + hitboxSize.x > canvasPos.x + canvasSize.x - 20.0f) {
+        hitboxSize.x = canvasPos.x + canvasSize.x - 20.0f - hitboxPos.x;
+    }
+
+    // Set cursor position for the hitbox
+    ImGui::SetCursorScreenPos(hitboxPos);
+    ImGui::InvisibleButton("queue_canvas", hitboxSize);
+    bool isHovered = ImGui::IsItemHovered();
+    bool isActive = ImGui::IsItemActive();
+
+    // Handle mouse drag for panning
+    if (isActive && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+        if (!m_isDragging) {
+            m_isDragging = true;
+            m_lastMousePos = ImGui::GetMousePos();
+        } else {
+            ImVec2 currentMousePos = ImGui::GetMousePos();
+            float deltaX = currentMousePos.x - m_lastMousePos.x;
+            m_cameraOffsetX += deltaX;
+            m_lastMousePos = currentMousePos;
+        }
+    } else {
+        m_isDragging = false;
+    }
+
+    // Handle mouse wheel
+    if (isHovered) {
+        float wheel = ImGui::GetIO().MouseWheel;
+        if (wheel != 0.0f) {
+            // Check if Ctrl is held for zoom
+            if (ImGui::GetIO().KeyCtrl) {
+                // Zoom in/out
+                float oldZoom = m_zoomLevel;
+                float zoomDelta = wheel * 0.1f;
+                m_zoomLevel += zoomDelta;
+
+                // Clamp zoom level
+                if (m_zoomLevel < 0.3f) m_zoomLevel = 0.3f;
+                if (m_zoomLevel > 3.0f) m_zoomLevel = 3.0f;
+
+                // Adjust camera offset to zoom toward mouse position
+                ImVec2 mousePos = ImGui::GetMousePos();
+                float mouseRelativeX = mousePos.x - canvasPos.x - horizontalOffset;
+                float zoomRatio = m_zoomLevel / oldZoom;
+
+                // Adjust offset so zoom focuses on mouse position
+                m_cameraOffsetX = m_cameraOffsetX * zoomRatio + mouseRelativeX * (1.0f - zoomRatio);
+            } else {
+                // Regular horizontal scrolling
+                m_cameraOffsetX += wheel * 50.0f;
+            }
+        }
+    }
+
+    // Recalculate with potentially updated zoom
+    scaledElementWidth = ELEMENT_WIDTH * m_zoomLevel;
+    scaledElementHeight = ELEMENT_HEIGHT * m_zoomLevel;
+    scaledSpacing = ELEMENT_SPACING * m_zoomLevel;
+
+    totalQueueWidth = m_queue.capacity() * scaledElementWidth +
+                      (m_queue.capacity() - 1) * scaledSpacing;
+
+    horizontalOffset = (canvasSize.x - totalQueueWidth) / 2.0f;
+    if (horizontalOffset < 20.0f) {
+        horizontalOffset = 20.0f;
+    }
+    horizontalOffset += m_cameraOffsetX;
+
+    // Clamp camera offset to prevent scrolling too far
+    float maxOffset = 0.0f;
+    float minOffset = canvasSize.x - totalQueueWidth - 40.0f;
+    if (minOffset > maxOffset) minOffset = maxOffset;
+
+    if (m_cameraOffsetX > (maxOffset - ((canvasSize.x - totalQueueWidth) / 2.0f) + 20.0f)) {
+        m_cameraOffsetX = maxOffset - ((canvasSize.x - totalQueueWidth) / 2.0f) + 20.0f;
+        horizontalOffset = maxOffset + 20.0f;
+    }
+    if (horizontalOffset < minOffset) {
+        m_cameraOffsetX = minOffset - ((canvasSize.x - totalQueueWidth) / 2.0f);
+        horizontalOffset = minOffset;
+    }
+
+    // Draw capacity indicator (ghost boxes showing circular buffer) with zoom
     for (size_t i = 0; i < m_queue.capacity(); ++i) {
         glm::vec2 pos = calculatePosition(i);
+        float scaledX = pos.x * m_zoomLevel;
+        float scaledY = START_Y * m_zoomLevel;
+
         VisualElement ghost;
-        ghost.position = glm::vec2(canvasPos.x + horizontalOffset + pos.x, canvasPos.y + pos.y);
-        ghost.size = glm::vec2(ELEMENT_WIDTH, ELEMENT_HEIGHT);
+        ghost.position = glm::vec2(canvasPos.x + horizontalOffset + scaledX, canvasPos.y + scaledY);
+        ghost.size = glm::vec2(scaledElementWidth, scaledElementHeight);
         ghost.color = colors::withAlpha(colors::mocha::surface1, 0.3f);
         ghost.borderColor = colors::withAlpha(colors::mocha::overlay0, 0.5f);
         ghost.borderWidth = 1.0f;
@@ -73,8 +182,8 @@ void QueueVisualizer::renderVisualization() {
         std::string indexLabel = std::to_string(i);
         ImVec2 indexSize = ImGui::CalcTextSize(indexLabel.c_str());
         ImVec2 indexPos = ImVec2(
-            ghost.position.x + (ELEMENT_WIDTH - indexSize.x) / 2.0f,
-            ghost.position.y + ELEMENT_HEIGHT + 5.0f
+            ghost.position.x + (scaledElementWidth - indexSize.x) / 2.0f,
+            ghost.position.y + scaledElementHeight + 5.0f
         );
         drawList->AddText(
             indexPos,
@@ -85,20 +194,25 @@ void QueueVisualizer::renderVisualization() {
         renderElement(drawList, ghost);
     }
 
-    // Draw actual queue elements
+    // Draw actual queue elements with zoom
     for (auto& elem : m_elements) {
         VisualElement renderElem = elem;
-        renderElem.position.x += canvasPos.x + horizontalOffset;
-        renderElem.position.y += canvasPos.y;
+        float scaledX = elem.position.x * m_zoomLevel;
+        float scaledY = START_Y * m_zoomLevel;
+
+        renderElem.position = glm::vec2(canvasPos.x + horizontalOffset + scaledX, canvasPos.y + scaledY);
+        renderElem.size = glm::vec2(scaledElementWidth, scaledElementHeight);
         renderElement(drawList, renderElem);
     }
 
     // Draw "FRONT" indicator
     if (!m_queue.isEmpty()) {
         glm::vec2 frontPos = calculatePosition(m_queue.frontIndex());
+        float scaledX = frontPos.x * m_zoomLevel;
+        float scaledY = START_Y * m_zoomLevel;
         ImVec2 frontArrowPos = ImVec2(
-            canvasPos.x + horizontalOffset + frontPos.x + ELEMENT_WIDTH / 2.0f - 30.0f,
-            canvasPos.y + frontPos.y - 25.0f
+            canvasPos.x + horizontalOffset + scaledX + scaledElementWidth / 2.0f - 30.0f,
+            canvasPos.y + scaledY - 25.0f
         );
         drawList->AddText(
             frontArrowPos,
@@ -110,9 +224,11 @@ void QueueVisualizer::renderVisualization() {
     // Draw "REAR" indicator (where next element will be added)
     if (!m_queue.isFull()) {
         glm::vec2 rearPos = calculatePosition(m_queue.rearIndex());
+        float scaledX = rearPos.x * m_zoomLevel;
+        float scaledY = START_Y * m_zoomLevel;
         ImVec2 rearArrowPos = ImVec2(
-            canvasPos.x + horizontalOffset + rearPos.x + ELEMENT_WIDTH / 2.0f - 25.0f,
-            canvasPos.y + rearPos.y + ELEMENT_HEIGHT + 35.0f
+            canvasPos.x + horizontalOffset + scaledX + scaledElementWidth / 2.0f - 25.0f,
+            canvasPos.y + scaledY + scaledElementHeight + 35.0f
         );
         drawList->AddText(
             rearArrowPos,
@@ -131,6 +247,24 @@ void QueueVisualizer::renderVisualization() {
         ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::overlay1)),
         "Circular Buffer: Elements wrap around when reaching the end"
     );
+
+    // Show interaction hints
+    if (!m_queue.isEmpty()) {
+        std::string hintText = "Drag to pan | Scroll to move | Ctrl+Scroll to zoom";
+        if (m_zoomLevel != 1.0f) {
+            hintText += " (Zoom: " + std::to_string(static_cast<int>(m_zoomLevel * 100)) + "%)";
+        }
+        ImVec2 hintSize = ImGui::CalcTextSize(hintText.c_str());
+        ImVec2 hintPos = ImVec2(
+            canvasPos.x + canvasSize.x - hintSize.x - 10.0f,
+            canvasPos.y + 10.0f
+        );
+        drawList->AddText(
+            hintPos,
+            ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::overlay0)),
+            hintText.c_str()
+        );
+    }
 }
 
 void QueueVisualizer::renderControls() {
@@ -168,6 +302,27 @@ void QueueVisualizer::renderControls() {
     }
     ImGui::EndDisabled();
     ui::Tooltip("View front element without removing");
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // Initialize operation
+    ImGui::Text("Initialize:");
+    ImGui::PushItemWidth(150.0f);
+    ImGui::InputInt("Count", &m_initCount);
+    if (m_initCount < 1) m_initCount = 1;
+    if (m_initCount > static_cast<int>(m_queue.capacity())) {
+        m_initCount = static_cast<int>(m_queue.capacity());
+    }
+    ImGui::PopItemWidth();
+
+    ImGui::BeginDisabled(isAnimating());
+    if (ui::ButtonPrimary("Initialize Random", ImVec2(200, 0))) {
+        initializeRandom(static_cast<size_t>(m_initCount));
+    }
+    ImGui::EndDisabled();
+    ui::Tooltip("Fill queue with random values (clears existing queue)");
 
     ImGui::Separator();
 
@@ -317,6 +472,56 @@ void QueueVisualizer::peekValue() {
             m_animator.enqueue(restore);
         }
     }
+}
+
+void QueueVisualizer::initializeRandom(size_t count) {
+    // Clear existing queue
+    m_queue.clear();
+    m_elements.clear();
+    m_animator.clear();
+
+    // Clamp count to capacity
+    if (count > m_queue.capacity()) {
+        count = m_queue.capacity();
+    }
+
+    // Update status
+    std::ostringstream oss;
+    oss << "Initializing queue with " << count << " random elements...";
+    m_statusText = oss.str();
+
+    // Generate random values
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(1, 99);
+
+    // Populate queue with random values
+    for (size_t i = 0; i < count; ++i) {
+        m_queue.enqueue(dis(gen));
+    }
+
+    // Sync visuals
+    syncVisuals();
+
+    // Animate each element appearing with a cascade effect from front to rear
+    for (size_t i = 0; i < m_elements.size(); ++i) {
+        auto& elem = m_elements[i];
+
+        // Flash to show appearance
+        Animation fadeIn = createColorAnimation(elem.color, colors::semantic::elementBase, 0.15f);
+        if (i == m_elements.size() - 1) {
+            fadeIn.onComplete = [this, count]() {
+                std::ostringstream oss;
+                oss << "Initialized queue with " << count << " random elements";
+                m_statusText = oss.str();
+            };
+        }
+        m_animator.enqueue(fadeIn);
+    }
+
+    // Reset camera position and zoom
+    m_cameraOffsetX = 0.0f;
+    m_zoomLevel = 1.0f;
 }
 
 void QueueVisualizer::play() {
