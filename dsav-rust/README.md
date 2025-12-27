@@ -5,15 +5,17 @@ Graphical visualizer using egui and OpenGL. Memory-safe implementation with mode
 ## Features
 
 **Data Structures:**
-- Array
-- Stack
-- Queue
-- Linked List
-- Binary Search Tree
+- Array (insert, delete, update, search)
+- Stack (push, pop, peek)
+- Queue (enqueue, dequeue, peek)
+- Linked List (insert, delete, update, search, traverse)
+- Binary Search Tree (insert, delete, search, traversals)
 
 **Sorting:**
 - Bubble Sort
+- Selection Sort
 - Insertion Sort
+- Merge Sort
 - Quick Sort
 
 **Searching:**
