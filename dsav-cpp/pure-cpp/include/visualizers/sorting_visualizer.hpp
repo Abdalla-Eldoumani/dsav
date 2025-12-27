@@ -120,6 +120,13 @@ private:
     int m_stepDelay = 500;                             ///< Delay between steps (ms)
     float m_timeSinceLastStep = 0.0f;                  ///< Time accumulator for auto-step
 
+    // Camera/viewport control for scrolling/panning
+    float m_cameraOffsetX = 0.0f;                      ///< Horizontal camera offset for panning
+    float m_cameraOffsetY = 0.0f;                      ///< Vertical camera offset for panning
+    float m_zoomLevel = 1.0f;                          ///< Zoom level (1.0 = normal, >1 = zoomed in, <1 = zoomed out)
+    bool m_isDragging = false;                         ///< Mouse drag state for panning
+    ImVec2 m_lastMousePos;                             ///< Last mouse position for drag delta
+
     // Visual constants
     static constexpr float ELEMENT_WIDTH = 50.0f;
     static constexpr float ELEMENT_HEIGHT_SCALE = 5.0f;  // Height multiplier for value
