@@ -7,8 +7,18 @@ Graphical visualizer using OpenGL and Dear ImGui. Two versions available.
 ### Pure C++ (`pure-cpp/`)
 Everything in C++. Works on any system with OpenGL.
 
+**Recent Updates:**
+- Camera controls (pan, zoom, scroll) for all visualizers
+- Random initialization for data structures (1-20 elements)
+- Improved merge sort visualization with subarray highlighting
+- Fixed window management (no overlapping windows)
+- Linked list HEAD indicator now points directly to first node
+- Linked list NULL displayed as actual node box
+- BST random initialization creates balanced trees
+
 ### Assembly-Linked (`asm-linked/`)
 C++ handles graphics, assembly handles data structures. Shows C++/Assembly integration.
+Contains basic stack visualizer only. Not feature-complete.
 
 ## Features
 
@@ -23,7 +33,7 @@ C++ handles graphics, assembly handles data structures. Shows C++/Assembly integ
 - Bubble Sort
 - Selection Sort
 - Insertion Sort
-- Merge Sort
+- Merge Sort (with division visualization)
 - Quick Sort
 
 **Searching:**
@@ -36,6 +46,13 @@ C++ handles graphics, assembly handles data structures. Shows C++/Assembly integ
 - Smooth animations
 - Adjustable speed
 - Step-by-step mode
+
+**Camera Controls (Pure C++ only):**
+- Drag to pan visualization
+- Mouse wheel to scroll
+- Ctrl + Mouse wheel to zoom (0.3x - 3.0x)
+- Zoom centers on mouse cursor
+- All visualizers support camera controls
 
 ## Requirements
 
@@ -159,16 +176,49 @@ brew install glfw glm
 
 ## Controls
 
+**Basic:**
 - Click data structure names to switch
 - Use buttons to perform operations
 - Play/Pause animation playback
 - Step through one operation at a time
 - Adjust speed slider (0.1x - 5x)
 
+**Camera (Pure C++ only):**
+- Drag to pan
+- Scroll to move vertically
+- Shift + Scroll for horizontal movement
+- Ctrl + Scroll to zoom in/out
+- ESC to exit
+- F11 for fullscreen
+
+## Visualization Details
+
+**Merge Sort:**
+- Left subarray highlighted in yellow
+- Right subarray highlighted in orange
+- Status shows range being merged: "Merging [0..2] (yellow) with [3..5] (orange)"
+
+**Linked List:**
+- HEAD indicator positioned 50px from first node
+- NULL displayed as semi-transparent node box at end
+- Arrows show pointer connections
+
+**Binary Search Tree:**
+- Random initialization uses shuffled values to prevent degenerate trees
+- Supports zoom and pan for navigating large trees
+
+**Color Scheme (Catppuccin Mocha):**
+- Yellow: Comparing elements
+- Orange: Swapping elements
+- Green: Sorted/final position
+- Blue: Active/selected
+- Red: Deleted/error
+
 ## Notes
 
 - Pure C++ works on x86 and ARM
 - Assembly-linked requires ARM64
-- Both versions have identical features
+- Pure C++ is feature-complete
+- Assembly-linked is proof-of-concept only
 - Graphics require OpenGL 3.3+ support
-- Window size: 1280x720 (pure), 1920x1080 (asm)
+- Window size: 1920x1080 (pure-cpp), adjustable in source
