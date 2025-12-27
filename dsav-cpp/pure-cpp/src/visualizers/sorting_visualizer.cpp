@@ -10,6 +10,7 @@
 #include <random>
 #include <sstream>
 #include <cmath>
+#include <iomanip>
 
 namespace dsav {
 
@@ -39,8 +40,6 @@ void SortingVisualizer::update(float deltaTime) {
 }
 
 void SortingVisualizer::renderVisualization() {
-    ImGui::Begin("Sorting Visualization");
-
     ImDrawList* drawList = ImGui::GetWindowDrawList();
     ImVec2 canvasPos = ImGui::GetCursorScreenPos();
     ImVec2 canvasSize = ImGui::GetContentRegionAvail();
@@ -56,33 +55,93 @@ void SortingVisualizer::renderVisualization() {
         ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::base))
     );
 
-    // Draw grid lines (optional)
+    // Calculate smaller hitbox (with padding on all sides)
+    const float padding = 20.0f;
+    ImVec2 hitboxMin = ImVec2(canvasPos.x + padding, canvasPos.y + padding);
+    ImVec2 hitboxMax = ImVec2(canvasPos.x + canvasSize.x - padding, canvasPos.y + canvasSize.y - padding - 40.0f);
+
+    // Camera controls - Mouse interaction within smaller hitbox
+    ImVec2 mousePos = ImGui::GetMousePos();
+    bool isInHitbox = (mousePos.x >= hitboxMin.x && mousePos.x <= hitboxMax.x &&
+                       mousePos.y >= hitboxMin.y && mousePos.y <= hitboxMax.y);
+
+    if (isInHitbox) {
+        // Panning - Drag with mouse
+        if (ImGui::IsMouseDragging(ImGuiMouseButton_Left, 1.0f)) {
+            if (!m_isDragging) {
+                m_isDragging = true;
+                m_lastMousePos = mousePos;
+            }
+            ImVec2 delta = ImVec2(mousePos.x - m_lastMousePos.x, mousePos.y - m_lastMousePos.y);
+            m_cameraOffsetX += delta.x;
+            m_cameraOffsetY += delta.y;
+            m_lastMousePos = mousePos;
+
+            // Prevent window from being dragged when we're panning the canvas
+            ImGui::SetWindowFocus();
+        } else {
+            m_isDragging = false;
+        }
+
+        // Zooming - Ctrl + Scroll
+        ImGuiIO& io = ImGui::GetIO();
+        if (io.KeyCtrl && io.MouseWheel != 0.0f) {
+            float zoomDelta = io.MouseWheel * 0.1f;
+            float oldZoom = m_zoomLevel;
+            m_zoomLevel += zoomDelta;
+            m_zoomLevel = std::clamp(m_zoomLevel, 0.3f, 3.0f);
+
+            // Zoom focus on mouse cursor position
+            float ratio = (m_zoomLevel - oldZoom) / oldZoom;
+            float relativeX = mousePos.x - canvasPos.x - m_cameraOffsetX;
+            float relativeY = mousePos.y - canvasPos.y - m_cameraOffsetY;
+            m_cameraOffsetX -= relativeX * ratio;
+            m_cameraOffsetY -= relativeY * ratio;
+        }
+        // Scrolling - Mouse wheel (vertical)
+        else if (io.MouseWheel != 0.0f) {
+            m_cameraOffsetY += io.MouseWheel * 30.0f;
+        }
+        // Horizontal scrolling - Shift + Mouse wheel
+        else if (io.KeyShift && io.MouseWheelH != 0.0f) {
+            m_cameraOffsetX += io.MouseWheelH * 30.0f;
+        }
+    }
+
+    // Apply camera offset
+    float horizontalOffset = m_cameraOffsetX;
+    float verticalOffset = m_cameraOffsetY;
+
+    // Draw grid lines (with zoom and offset)
     ImU32 gridColor = ImGui::ColorConvertFloat4ToU32(ImVec4(0.3f, 0.3f, 0.3f, 0.5f));
     for (int i = 0; i <= 10; ++i) {
-        float y = canvasPos.y + (canvasSize.y / 10.0f) * i;
+        float y = (canvasSize.y / 10.0f) * i * m_zoomLevel;
         drawList->AddLine(
-            ImVec2(canvasPos.x, y),
-            ImVec2(canvasPos.x + canvasSize.x, y),
+            ImVec2(canvasPos.x, canvasPos.y + y + verticalOffset),
+            ImVec2(canvasPos.x + canvasSize.x, canvasPos.y + y + verticalOffset),
             gridColor,
             1.0f
         );
     }
 
-    // Draw elements as vertical bars
+    // Draw elements as vertical bars (with zoom and offset)
     for (size_t i = 0; i < m_elements.size(); ++i) {
         const auto& elem = m_elements[i];
 
-        // Calculate bar height based on value
-        float barHeight = elem.value * ELEMENT_HEIGHT_SCALE;
+        // Calculate bar height based on value (scaled)
+        float barHeight = elem.value * ELEMENT_HEIGHT_SCALE * m_zoomLevel;
+        float scaledWidth = ELEMENT_WIDTH * m_zoomLevel;
+        float scaledX = elem.position.x * m_zoomLevel;
+        float scaledBaseY = BASE_Y * m_zoomLevel;
 
         // Draw bar (from bottom up)
         ImVec2 topLeft = ImVec2(
-            canvasPos.x + elem.position.x,
-            canvasPos.y + BASE_Y - barHeight
+            canvasPos.x + scaledX + horizontalOffset,
+            canvasPos.y + scaledBaseY - barHeight + verticalOffset
         );
         ImVec2 bottomRight = ImVec2(
-            canvasPos.x + elem.position.x + ELEMENT_WIDTH,
-            canvasPos.y + BASE_Y
+            canvasPos.x + scaledX + scaledWidth + horizontalOffset,
+            canvasPos.y + scaledBaseY + verticalOffset
         );
 
         // Draw filled bar
@@ -90,7 +149,7 @@ void SortingVisualizer::renderVisualization() {
             topLeft,
             bottomRight,
             ImGui::ColorConvertFloat4ToU32(colors::toImGui(elem.color)),
-            4.0f
+            4.0f * m_zoomLevel
         );
 
         // Draw border
@@ -98,15 +157,15 @@ void SortingVisualizer::renderVisualization() {
             topLeft,
             bottomRight,
             ImGui::ColorConvertFloat4ToU32(colors::toImGui(elem.borderColor)),
-            4.0f,
+            4.0f * m_zoomLevel,
             0,
             2.0f
         );
 
         // Draw value label on top of bar
         ImVec2 labelPos = ImVec2(
-            topLeft.x + (ELEMENT_WIDTH - ImGui::CalcTextSize(elem.label.c_str()).x) / 2.0f,
-            topLeft.y - 20.0f
+            topLeft.x + (scaledWidth - ImGui::CalcTextSize(elem.label.c_str()).x) / 2.0f,
+            topLeft.y - 20.0f * m_zoomLevel
         );
         drawList->AddText(
             labelPos,
@@ -117,8 +176,8 @@ void SortingVisualizer::renderVisualization() {
         // Draw index label at bottom
         std::string indexLabel = "[" + std::to_string(i) + "]";
         ImVec2 indexPos = ImVec2(
-            topLeft.x + (ELEMENT_WIDTH - ImGui::CalcTextSize(indexLabel.c_str()).x) / 2.0f,
-            bottomRight.y + 5.0f
+            topLeft.x + (scaledWidth - ImGui::CalcTextSize(indexLabel.c_str()).x) / 2.0f,
+            bottomRight.y + 5.0f * m_zoomLevel
         );
         drawList->AddText(
             indexPos,
@@ -144,8 +203,19 @@ void SortingVisualizer::renderVisualization() {
         algoName.c_str()
     );
 
+    // Draw hint text at bottom showing controls and zoom level
+    ImVec2 hintPos = ImVec2(canvasPos.x + 10.0f, canvasPos.y + canvasSize.y - 30.0f);
+    std::ostringstream hintStream;
+    hintStream << "Drag: Pan | Scroll: Move | Ctrl+Scroll: Zoom | Zoom: "
+               << std::fixed << std::setprecision(1) << (m_zoomLevel * 100.0f) << "%";
+    drawList->AddText(
+        hintPos,
+        ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::overlay1)),
+        hintStream.str().c_str()
+    );
+
+    // Reserve space for the canvas
     ImGui::Dummy(canvasSize);
-    ImGui::End();
 }
 
 void SortingVisualizer::renderControls() {
@@ -466,9 +536,11 @@ void SortingVisualizer::executeStep() {
                     m_isPaused = true;
                 } else {
                     int left = m_mergeSorter->getLeftIndex();
+                    int mid = m_mergeSorter->getMidIndex();
                     int right = m_mergeSorter->getRightIndex();
                     std::ostringstream oss;
-                    oss << "Merging subarrays [" << left << ".." << right << "]";
+                    oss << "Merging [" << left << ".." << mid << "] (yellow) with ["
+                        << (mid + 1) << ".." << right << "] (orange)";
                     m_statusText = oss.str();
                 }
             }
@@ -598,14 +670,20 @@ void SortingVisualizer::updateColors() {
         case Algorithm::MergeSort:
             if (m_mergeSorter) {
                 int left = m_mergeSorter->getLeftIndex();
+                int mid = m_mergeSorter->getMidIndex();
                 int right = m_mergeSorter->getRightIndex();
 
-                // Highlight range being merged
-                for (int i = left; i >= 0 && i <= right && i < static_cast<int>(m_elements.size()); ++i) {
+                // Highlight left subarray (being merged) - Yellow
+                for (int i = left; i >= 0 && i <= mid && i < static_cast<int>(m_elements.size()); ++i) {
                     m_elements[i].color = colors::semantic::comparing;
                 }
 
-                // Highlight sorted elements
+                // Highlight right subarray (being merged) - Peach/Orange
+                for (int i = mid + 1; i >= 0 && i <= right && i < static_cast<int>(m_elements.size()); ++i) {
+                    m_elements[i].color = colors::semantic::swapping;
+                }
+
+                // Highlight sorted elements - Green
                 const auto& sortedIndices = m_mergeSorter->getSortedIndices();
                 for (int idx : sortedIndices) {
                     if (idx >= 0 && idx < static_cast<int>(m_elements.size())) {
