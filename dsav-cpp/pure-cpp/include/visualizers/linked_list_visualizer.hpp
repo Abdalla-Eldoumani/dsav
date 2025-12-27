@@ -30,6 +30,7 @@ struct VisualNode {
     glm::vec4 borderColor;
     std::string label;
     bool hasNext;  // Whether this node has a next pointer
+    bool isNull;   // Whether this is the NULL terminator node
 };
 
 /**
@@ -72,6 +73,7 @@ public:
     void deleteBackValue();
     void deleteAtValue(size_t index);
     void searchValue(int value);
+    void initializeRandom(size_t count);
 
 private:
     /**
@@ -108,6 +110,13 @@ private:
     int m_inputIndex = 0;                      ///< Index for insert/delete
     bool m_isPaused = true;                    ///< Pause state
     float m_speed = 1.0f;                      ///< Animation speed multiplier
+    int m_initCount = 10;                      ///< Number of nodes for random initialization
+
+    // Camera/viewport control for scrolling/panning
+    float m_cameraOffsetX = 0.0f;              ///< Horizontal camera offset for panning
+    float m_zoomLevel = 1.0f;                  ///< Zoom level (1.0 = normal, >1 = zoomed in, <1 = zoomed out)
+    bool m_isDragging = false;                 ///< Mouse drag state for panning
+    ImVec2 m_lastMousePos;                     ///< Last mouse position for drag delta
 
     // Operation mode
     enum class OperationMode {
