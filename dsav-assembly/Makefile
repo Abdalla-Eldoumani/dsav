@@ -32,5 +32,11 @@ clean:
 	@echo "Clean complete"
 
 # Test: build and run
-test: $(TARGET)
+run: $(TARGET)
 	./$(TARGET)
+
+# Clean, build, run, then clean again
+both:
+	@$(MAKE) clean
+	@$(MAKE) $(TARGET)
+	@./$(TARGET); $(MAKE) clean || $(MAKE) clean
