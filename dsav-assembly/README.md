@@ -10,9 +10,10 @@ Terminal-based visualizer for data structures and algorithms, written in pure AR
 - **Queue** - Circular FIFO, horizontal display with front/rear pointers
 - **Linked List** - Dynamic nodes with malloc/free and **animated search traversal**
   - Search highlights each node as it traverses (similar to BST search)
-- **Binary Search Tree** - Insert, delete, **animated search**, traversals (in/pre/post-order)
+- **Binary Search Tree** - Insert, delete, **animated search**, traversals (in/pre/post/level-order)
   - ASCII tree display option
   - Search highlights path through tree
+  - Level-order traversal shows breadth-first node visiting
 
 ### Algorithms
 **Sorting:**
@@ -52,7 +53,8 @@ Both search algorithms support user-configurable animation speed and table-style
 ```bash
 make          # Build project
 make clean    # Remove generated files
-make test     # Build and run
+make run      # Build and run
+make both     # Clean, build, run, then clean again
 ```
 
 ## Running
