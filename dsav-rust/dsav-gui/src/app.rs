@@ -262,7 +262,7 @@ impl DsavApp {
 
     fn array_controls(&mut self, ui: &mut egui::Ui) {
         ui.group(|ui| {
-            ui.label("Insert / Delete:");
+            ui.label("Insert / Delete / Update:");
 
             ui.horizontal(|ui| {
                 ui.label("Value:");
@@ -281,6 +281,10 @@ impl DsavApp {
 
                 if ui.button("🗑 Delete").clicked() {
                     self.execute_array_operation(Operation::Delete(self.input_index));
+                }
+
+                if ui.button("✏ Update").clicked() {
+                    self.execute_array_operation(Operation::Update(self.input_index, self.input_value));
                 }
             });
         });
@@ -328,8 +332,16 @@ impl DsavApp {
                 self.execute_array_operation(Operation::BubbleSort);
             }
 
+            if ui.button("🔵 Selection Sort").clicked() {
+                self.execute_array_operation(Operation::SelectionSort);
+            }
+
             if ui.button("📌 Insertion Sort").clicked() {
                 self.execute_array_operation(Operation::InsertionSort);
+            }
+
+            if ui.button("🔀 Merge Sort").clicked() {
+                self.execute_array_operation(Operation::MergeSort);
             }
 
             if ui.button("⚡ Quick Sort").clicked() {
@@ -515,7 +527,7 @@ impl DsavApp {
 
     fn linked_list_controls(&mut self, ui: &mut egui::Ui) {
         ui.group(|ui| {
-            ui.label("Insert / Delete:");
+            ui.label("Insert / Delete / Update:");
 
             ui.horizontal(|ui| {
                 ui.label("Value:");
@@ -534,6 +546,10 @@ impl DsavApp {
 
                 if ui.button("🗑 Delete").clicked() {
                     self.execute_linked_list_operation(Operation::Delete(self.input_index));
+                }
+
+                if ui.button("✏ Update").clicked() {
+                    self.execute_linked_list_operation(Operation::Update(self.input_index, self.input_value));
                 }
             });
         });
@@ -599,7 +615,7 @@ impl DsavApp {
 
     fn bst_controls(&mut self, ui: &mut egui::Ui) {
         ui.group(|ui| {
-            ui.label("Insert / Search:");
+            ui.label("Insert / Delete / Search:");
 
             ui.horizontal(|ui| {
                 ui.label("Value:");
@@ -609,6 +625,10 @@ impl DsavApp {
             ui.horizontal(|ui| {
                 if ui.button("📥 Insert").clicked() {
                     self.execute_bst_operation(Operation::Insert(0, self.input_value));
+                }
+
+                if ui.button("🗑 Delete").clicked() {
+                    self.execute_bst_operation(Operation::Delete(self.input_value as usize));
                 }
 
                 if ui.button("🔍 Search").clicked() {
@@ -1055,13 +1075,16 @@ impl DsavApp {
                 ui.horizontal(|ui| {
                     ui.add_space(20.0);
 
-                    // HEAD label
+                    // HEAD label with enhanced visibility
                     ui.vertical(|ui| {
-                        ui.add_space(30.0);
-                        ui.label("HEAD ↓");
+                        ui.add_space(20.0);
+                        ui.group(|ui| {
+                            ui.label(egui::RichText::new("HEAD").size(16.0).strong());
+                            ui.label(egui::RichText::new("  ↓").size(20.0));
+                        });
                     });
 
-                    ui.add_space(16.0);
+                    ui.add_space(8.0);
 
                     for (i, elem) in state.elements.iter().enumerate() {
                         let (bg_color, border_color) = self.get_element_colors(elem.state);
@@ -1092,23 +1115,27 @@ impl DsavApp {
                             ui.label(format!("Node {}", i));
                         });
 
-                        // Draw arrow to next node
+                        // Draw enhanced arrow to next node
                         if i < state.elements.len() - 1 {
                             ui.add_space(4.0);
                             ui.vertical(|ui| {
-                                ui.add_space(30.0);
-                                ui.label("→");
+                                ui.add_space(25.0);
+                                ui.label(egui::RichText::new("→").size(24.0).strong().color(palette.blue));
                             });
                             ui.add_space(4.0);
                         }
                     }
 
-                    ui.add_space(16.0);
+                    ui.add_space(8.0);
 
-                    // NULL/TAIL label
+                    // Enhanced NULL/TAIL label
                     ui.vertical(|ui| {
-                        ui.add_space(30.0);
-                        ui.label("↓ NULL");
+                        ui.add_space(25.0);
+                        ui.label(egui::RichText::new("→").size(24.0).strong().color(palette.red));
+                        ui.add_space(4.0);
+                        ui.group(|ui| {
+                            ui.label(egui::RichText::new("NULL").size(14.0).strong().color(palette.red));
+                        });
                     });
                 });
             });
@@ -1148,10 +1175,11 @@ impl DsavApp {
         // Calculate tree layout positions
         let node_radius = 25.0;
         let level_height = 100.0;
-        let min_horizontal_spacing = 80.0;
 
-        // Find tree depth
+        // Find tree depth and calculate required width
         let max_depth = self.calculate_tree_depth(&state);
+        let tree_width = self.calculate_subtree_width(0, &state);
+        let initial_width = tree_width.max(800.0); // Minimum width of 800
 
         // Calculate positions for each node
         let mut positions = std::collections::HashMap::new();
@@ -1159,7 +1187,7 @@ impl DsavApp {
             0,
             0,
             0.0,
-            1000.0,
+            initial_width,
             level_height,
             &state,
             &mut positions,
@@ -1244,7 +1272,7 @@ impl DsavApp {
         max_depth
     }
 
-    // Recursively calculate positions for nodes in the tree
+    // Improved tree layout algorithm that prevents overlaps
     fn calculate_node_positions(
         &self,
         idx: usize,
@@ -1259,39 +1287,96 @@ impl DsavApp {
             return;
         }
 
+        const MIN_NODE_SPACING: f32 = 80.0; // Minimum spacing between nodes
+        const NODE_RADIUS: f32 = 25.0;
+
+        // Calculate subtree widths
+        let left_child_idx = idx * 2 + 1;
+        let right_child_idx = idx * 2 + 2;
+
+        let has_left = left_child_idx < state.elements.len() && !state.elements[left_child_idx].label.is_empty();
+        let has_right = right_child_idx < state.elements.len() && !state.elements[right_child_idx].label.is_empty();
+
+        // Calculate required width for this subtree
+        let left_width = if has_left {
+            self.calculate_subtree_width(left_child_idx, state)
+        } else {
+            MIN_NODE_SPACING / 2.0
+        };
+
+        let right_width = if has_right {
+            self.calculate_subtree_width(right_child_idx, state)
+        } else {
+            MIN_NODE_SPACING / 2.0
+        };
+
+        // Ensure we have enough space
+        let available_width = right_bound - left_bound;
+        let required_width = left_width + right_width + MIN_NODE_SPACING;
+
+        let scale = if required_width > available_width {
+            available_width / required_width
+        } else {
+            1.0
+        };
+
+        // Position current node in the center of its space
         let x = (left_bound + right_bound) / 2.0;
         let y = 50.0 + depth as f32 * level_height;
         positions.insert(idx, (x, y));
 
-        let mid = (left_bound + right_bound) / 2.0;
-
-        // Calculate left child position
-        let left_child_idx = idx * 2 + 1;
-        if left_child_idx < state.elements.len() && !state.elements[left_child_idx].label.is_empty() {
+        // Calculate child positions with improved spacing
+        if has_left {
+            let left_space = (left_width * scale).max(MIN_NODE_SPACING);
             self.calculate_node_positions(
                 left_child_idx,
                 depth + 1,
                 left_bound,
-                mid,
+                x - MIN_NODE_SPACING / 4.0,
                 level_height,
                 state,
                 positions,
             );
         }
 
-        // Calculate right child position
-        let right_child_idx = idx * 2 + 2;
-        if right_child_idx < state.elements.len() && !state.elements[right_child_idx].label.is_empty() {
+        if has_right {
+            let right_space = (right_width * scale).max(MIN_NODE_SPACING);
             self.calculate_node_positions(
                 right_child_idx,
                 depth + 1,
-                mid,
+                x + MIN_NODE_SPACING / 4.0,
                 right_bound,
                 level_height,
                 state,
                 positions,
             );
         }
+    }
+
+    // Calculate the width required for a subtree
+    fn calculate_subtree_width(&self, idx: usize, state: &dsav_core::state::RenderState) -> f32 {
+        const MIN_NODE_SPACING: f32 = 80.0;
+
+        if idx >= state.elements.len() || state.elements[idx].label.is_empty() {
+            return 0.0;
+        }
+
+        let left_child_idx = idx * 2 + 1;
+        let right_child_idx = idx * 2 + 2;
+
+        let left_width = if left_child_idx < state.elements.len() && !state.elements[left_child_idx].label.is_empty() {
+            self.calculate_subtree_width(left_child_idx, state)
+        } else {
+            MIN_NODE_SPACING / 2.0
+        };
+
+        let right_width = if right_child_idx < state.elements.len() && !state.elements[right_child_idx].label.is_empty() {
+            self.calculate_subtree_width(right_child_idx, state)
+        } else {
+            MIN_NODE_SPACING / 2.0
+        };
+
+        (left_width + right_width + MIN_NODE_SPACING).max(MIN_NODE_SPACING)
     }
 
     fn render_animation_controls(&mut self, ui: &mut egui::Ui) {
