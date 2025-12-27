@@ -38,8 +38,6 @@ void SearchingVisualizer::update(float deltaTime) {
 }
 
 void SearchingVisualizer::renderVisualization() {
-    ImGui::Begin("Search Visualization");
-
     ImDrawList* drawList = ImGui::GetWindowDrawList();
     ImVec2 canvasPos = ImGui::GetCursorScreenPos();
     ImVec2 canvasSize = ImGui::GetContentRegionAvail();
@@ -143,8 +141,8 @@ void SearchingVisualizer::renderVisualization() {
         }
     }
 
+    // Reserve space for the canvas
     ImGui::Dummy(canvasSize);
-    ImGui::End();
 }
 
 void SearchingVisualizer::renderControls() {
