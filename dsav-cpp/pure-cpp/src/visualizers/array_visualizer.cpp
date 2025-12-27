@@ -7,6 +7,8 @@
 #include "ui_components.hpp"
 #include <sstream>
 #include <iomanip>
+#include <random>
+#include <ctime>
 
 namespace dsav {
 
@@ -47,23 +49,136 @@ void ArrayVisualizer::renderVisualization() {
         ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::mantle))
     );
 
-    // Calculate total width and center horizontally
+    // Calculate total width with zoom applied
+    float scaledElementWidth = ELEMENT_WIDTH * m_zoomLevel;
+    float scaledElementHeight = ELEMENT_HEIGHT * m_zoomLevel;
+    float scaledSpacing = ELEMENT_SPACING * m_zoomLevel;
+
     float totalWidth = 0.0f;
     if (!m_elements.empty()) {
-        totalWidth = m_elements.size() * ELEMENT_WIDTH +
-                     (m_elements.size() - 1) * ELEMENT_SPACING;
+        totalWidth = m_elements.size() * scaledElementWidth +
+                     (m_elements.size() - 1) * scaledSpacing;
     }
 
+    // Calculate horizontal offset for centering
     float horizontalOffset = (canvasSize.x - totalWidth) / 2.0f;
     if (horizontalOffset < 20.0f) {
         horizontalOffset = 20.0f;
     }
 
-    // Draw array elements
+    // Apply camera offset
+    horizontalOffset += m_cameraOffsetX;
+
+    // Calculate interaction hitbox (smaller, only where elements are)
+    float hitboxPadding = 40.0f;
+    ImVec2 hitboxPos = ImVec2(
+        canvasPos.x + std::max(20.0f, horizontalOffset - hitboxPadding),
+        canvasPos.y + START_Y - hitboxPadding
+    );
+    ImVec2 hitboxSize = ImVec2(
+        std::min(canvasSize.x - 40.0f, totalWidth + hitboxPadding * 2),
+        scaledElementHeight + 80.0f + hitboxPadding * 2 // Include space for index labels
+    );
+
+    // Make sure hitbox stays within canvas
+    if (hitboxPos.x < canvasPos.x + 20.0f) {
+        hitboxSize.x -= (canvasPos.x + 20.0f - hitboxPos.x);
+        hitboxPos.x = canvasPos.x + 20.0f;
+    }
+    if (hitboxPos.x + hitboxSize.x > canvasPos.x + canvasSize.x - 20.0f) {
+        hitboxSize.x = canvasPos.x + canvasSize.x - 20.0f - hitboxPos.x;
+    }
+
+    // Set cursor position for the hitbox
+    ImGui::SetCursorScreenPos(hitboxPos);
+    ImGui::InvisibleButton("array_canvas", hitboxSize);
+    bool isHovered = ImGui::IsItemHovered();
+    bool isActive = ImGui::IsItemActive();
+
+    // Handle mouse drag for panning
+    if (isActive && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+        if (!m_isDragging) {
+            m_isDragging = true;
+            m_lastMousePos = ImGui::GetMousePos();
+        } else {
+            ImVec2 currentMousePos = ImGui::GetMousePos();
+            float deltaX = currentMousePos.x - m_lastMousePos.x;
+            m_cameraOffsetX += deltaX;
+            m_lastMousePos = currentMousePos;
+        }
+    } else {
+        m_isDragging = false;
+    }
+
+    // Handle mouse wheel
+    if (isHovered) {
+        float wheel = ImGui::GetIO().MouseWheel;
+        if (wheel != 0.0f) {
+            // Check if Ctrl is held for zoom
+            if (ImGui::GetIO().KeyCtrl) {
+                // Zoom in/out
+                float oldZoom = m_zoomLevel;
+                float zoomDelta = wheel * 0.1f; // Zoom speed
+                m_zoomLevel += zoomDelta;
+
+                // Clamp zoom level
+                if (m_zoomLevel < 0.3f) m_zoomLevel = 0.3f;
+                if (m_zoomLevel > 3.0f) m_zoomLevel = 3.0f;
+
+                // Adjust camera offset to zoom toward mouse position
+                ImVec2 mousePos = ImGui::GetMousePos();
+                float mouseRelativeX = mousePos.x - canvasPos.x - horizontalOffset;
+                float zoomRatio = m_zoomLevel / oldZoom;
+
+                // Adjust offset so zoom focuses on mouse position
+                m_cameraOffsetX = m_cameraOffsetX * zoomRatio + mouseRelativeX * (1.0f - zoomRatio);
+            } else {
+                // Regular horizontal scrolling
+                m_cameraOffsetX += wheel * 50.0f; // Scroll speed multiplier
+            }
+        }
+    }
+
+    // Recalculate with potentially updated zoom
+    scaledElementWidth = ELEMENT_WIDTH * m_zoomLevel;
+    scaledElementHeight = ELEMENT_HEIGHT * m_zoomLevel;
+    scaledSpacing = ELEMENT_SPACING * m_zoomLevel;
+
+    totalWidth = 0.0f;
+    if (!m_elements.empty()) {
+        totalWidth = m_elements.size() * scaledElementWidth +
+                     (m_elements.size() - 1) * scaledSpacing;
+    }
+
+    horizontalOffset = (canvasSize.x - totalWidth) / 2.0f;
+    if (horizontalOffset < 20.0f) {
+        horizontalOffset = 20.0f;
+    }
+    horizontalOffset += m_cameraOffsetX;
+
+    // Clamp camera offset to prevent scrolling too far
+    float maxOffset = 0.0f;
+    float minOffset = canvasSize.x - totalWidth - 40.0f;
+    if (minOffset > maxOffset) minOffset = maxOffset;
+
+    if (m_cameraOffsetX > (maxOffset - ((canvasSize.x - totalWidth) / 2.0f) + 20.0f)) {
+        m_cameraOffsetX = maxOffset - ((canvasSize.x - totalWidth) / 2.0f) + 20.0f;
+        horizontalOffset = maxOffset + 20.0f;
+    }
+    if (horizontalOffset < minOffset) {
+        m_cameraOffsetX = minOffset - ((canvasSize.x - totalWidth) / 2.0f);
+        horizontalOffset = minOffset;
+    }
+
+    // Draw array elements with zoom applied
     for (size_t i = 0; i < m_elements.size(); ++i) {
         VisualElement renderElem = m_elements[i];
-        renderElem.position.x += canvasPos.x + horizontalOffset;
-        renderElem.position.y += canvasPos.y;
+
+        // Apply zoom to position and size
+        float scaledX = m_elements[i].position.x * m_zoomLevel;
+        renderElem.position.x = canvasPos.x + horizontalOffset + scaledX;
+        renderElem.position.y = canvasPos.y + START_Y;
+        renderElem.size = glm::vec2(scaledElementWidth, scaledElementHeight);
 
         renderElement(drawList, renderElem);
 
@@ -71,8 +186,8 @@ void ArrayVisualizer::renderVisualization() {
         std::string indexLabel = "[" + std::to_string(i) + "]";
         ImVec2 indexSize = ImGui::CalcTextSize(indexLabel.c_str());
         ImVec2 indexPos = ImVec2(
-            renderElem.position.x + (ELEMENT_WIDTH - indexSize.x) / 2.0f,
-            renderElem.position.y + ELEMENT_HEIGHT + 5.0f
+            renderElem.position.x + (scaledElementWidth - indexSize.x) / 2.0f,
+            renderElem.position.y + scaledElementHeight + 5.0f
         );
         drawList->AddText(
             indexPos,
@@ -92,6 +207,22 @@ void ArrayVisualizer::renderVisualization() {
             ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::overlay1)),
             "Array is empty. Use Insert to add elements."
         );
+    } else {
+        // Show interaction hints
+        std::string hintText = "Drag to pan | Scroll to move | Ctrl+Scroll to zoom";
+        if (m_zoomLevel != 1.0f) {
+            hintText += " (Zoom: " + std::to_string(static_cast<int>(m_zoomLevel * 100)) + "%)";
+        }
+        ImVec2 hintSize = ImGui::CalcTextSize(hintText.c_str());
+        ImVec2 hintPos = ImVec2(
+            canvasPos.x + canvasSize.x - hintSize.x - 10.0f,
+            canvasPos.y + 10.0f
+        );
+        drawList->AddText(
+            hintPos,
+            ImGui::ColorConvertFloat4ToU32(colors::toImGui(colors::mocha::overlay0)),
+            hintText.c_str()
+        );
     }
 }
 
@@ -104,7 +235,7 @@ void ArrayVisualizer::renderControls() {
 
     // Operation mode selection
     ImGui::Text("Operation Mode:");
-    const char* modes[] = { "Insert", "Delete", "Search", "Access", "Update" };
+    const char* modes[] = { "Insert", "Delete", "Search", "Access", "Update", "Initialize" };
     int currentModeIdx = static_cast<int>(m_currentMode);
     if (ImGui::Combo("##Mode", &currentModeIdx, modes, IM_ARRAYSIZE(modes))) {
         m_currentMode = static_cast<OperationMode>(currentModeIdx);
@@ -124,9 +255,16 @@ void ArrayVisualizer::renderControls() {
     }
 
     // Index input (for Insert, Delete, Access, Update)
-    if (m_currentMode != OperationMode::Search) {
+    if (m_currentMode != OperationMode::Search && m_currentMode != OperationMode::Initialize) {
         ImGui::InputInt("Index", &m_inputIndex);
         if (m_inputIndex < 0) m_inputIndex = 0;
+    }
+
+    // Count input (for Initialize)
+    if (m_currentMode == OperationMode::Initialize) {
+        ImGui::InputInt("Count", &m_initCount);
+        if (m_initCount < 1) m_initCount = 1;
+        if (m_initCount > 20) m_initCount = 20;
     }
 
     ImGui::PopItemWidth();
@@ -166,6 +304,11 @@ void ArrayVisualizer::renderControls() {
             tooltipText = "Update element at index with new value";
             canExecute = !m_array.isEmpty() && static_cast<size_t>(m_inputIndex) < m_array.size();
             break;
+        case OperationMode::Initialize:
+            buttonLabel = "Initialize Random";
+            tooltipText = "Fill array with random values (clears existing array)";
+            canExecute = true;
+            break;
     }
 
     if (!canExecute) {
@@ -188,6 +331,9 @@ void ArrayVisualizer::renderControls() {
                 break;
             case OperationMode::Update:
                 updateValue(static_cast<size_t>(m_inputIndex), m_inputValue);
+                break;
+            case OperationMode::Initialize:
+                initializeRandomArray(static_cast<size_t>(m_initCount));
                 break;
         }
     }
@@ -414,6 +560,50 @@ void ArrayVisualizer::updateValue(size_t index, int value) {
         Animation restore = createColorAnimation(elem.color, colors::semantic::elementBase, 0.3f);
         m_animator.enqueue(restore);
     }
+}
+
+void ArrayVisualizer::initializeRandomArray(size_t count) {
+    // Clear existing array
+    m_array.clear();
+    m_animator.clear();
+
+    // Update status
+    std::ostringstream oss;
+    oss << "Initializing array with " << count << " random elements...";
+    m_statusText = oss.str();
+
+    // Generate random values
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(1, 99);
+
+    // Populate array with random values
+    for (size_t i = 0; i < count; ++i) {
+        m_array.pushBack(dis(gen));
+    }
+
+    // Sync visuals
+    syncVisuals();
+
+    // Animate each element appearing with a cascade effect
+    for (size_t i = 0; i < m_elements.size(); ++i) {
+        auto& elem = m_elements[i];
+
+        // Start with transparent/invisible color, fade in
+        Animation fadeIn = createColorAnimation(elem.color, colors::semantic::elementBase, 0.2f);
+        if (i == m_elements.size() - 1) {
+            fadeIn.onComplete = [this, count]() {
+                std::ostringstream oss;
+                oss << "Initialized array with " << count << " random elements";
+                m_statusText = oss.str();
+            };
+        }
+        m_animator.enqueue(fadeIn);
+    }
+
+    // Reset camera position and zoom
+    m_cameraOffsetX = 0.0f;
+    m_zoomLevel = 1.0f;
 }
 
 void ArrayVisualizer::play() {
