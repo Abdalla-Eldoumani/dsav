@@ -56,6 +56,7 @@ public:
     void searchValue(int value);
     void accessValue(size_t index);
     void updateValue(size_t index, int value);
+    void initializeRandomArray(size_t count);
 
 private:
     /**
@@ -82,6 +83,13 @@ private:
     int m_inputIndex = 0;                      ///< Index for insert/delete/access/update
     bool m_isPaused = true;                    ///< Pause state
     float m_speed = 1.0f;                      ///< Animation speed multiplier
+    int m_initCount = 20;                      ///< Number of elements for random initialization
+
+    // Camera/viewport control for scrolling/panning
+    float m_cameraOffsetX = 0.0f;              ///< Horizontal camera offset for panning
+    float m_zoomLevel = 1.0f;                  ///< Zoom level (1.0 = normal, >1 = zoomed in, <1 = zoomed out)
+    bool m_isDragging = false;                 ///< Mouse drag state for panning
+    ImVec2 m_lastMousePos;                     ///< Last mouse position for drag delta
 
     // Operation mode
     enum class OperationMode {
@@ -89,7 +97,8 @@ private:
         Delete,
         Search,
         Access,
-        Update
+        Update,
+        Initialize
     };
     OperationMode m_currentMode = OperationMode::Insert;
 
