@@ -6,6 +6,7 @@ use dsav_core::{
     structures::VisualizableQueue,
     structures::VisualizableLinkedList,
     structures::VisualizableBST,
+    structures::VisualizableRBTree,
     Operation,
     Visualizable,
     Step
@@ -19,6 +20,7 @@ enum DataStructure {
     Queue,
     LinkedList,
     BST,
+    RBTree,
 }
 
 pub struct DsavApp {
@@ -28,6 +30,7 @@ pub struct DsavApp {
     queue: VisualizableQueue,
     linked_list: VisualizableLinkedList,
     bst: VisualizableBST,
+    rb_tree: VisualizableRBTree,
 
     input_value: i32,
     input_index: usize,
@@ -43,6 +46,8 @@ pub struct DsavApp {
 
     current_theme: Theme,
     show_settings: bool,
+    show_nil_nodes: bool,
+    tree_zoom: f32,
 }
 
 impl DsavApp {
@@ -65,6 +70,15 @@ impl DsavApp {
         bst.insert(20);
         bst.insert(40);
 
+        let mut rb_tree = VisualizableRBTree::new();
+        rb_tree.insert(50);
+        rb_tree.insert(30);
+        rb_tree.insert(70);
+        rb_tree.insert(20);
+        rb_tree.insert(40);
+        rb_tree.insert(60);
+        rb_tree.insert(80);
+
         Self {
             selected_structure: DataStructure::Array,
             array,
@@ -72,6 +86,7 @@ impl DsavApp {
             queue: VisualizableQueue::with_capacity(16),
             linked_list,
             bst,
+            rb_tree,
             input_value: 42,
             input_index: 0,
             search_value: 30,
@@ -84,6 +99,8 @@ impl DsavApp {
             time_since_last_step: 0.0,
             current_theme: Theme::Vibrant,
             show_settings: false,
+            show_nil_nodes: false,
+            tree_zoom: 1.0,
         }
     }
 
@@ -156,6 +173,7 @@ impl DsavApp {
                     });
                     ui.horizontal(|ui| {
                         ui.selectable_value(&mut self.selected_structure, DataStructure::BST, "🌲 BST");
+                        ui.selectable_value(&mut self.selected_structure, DataStructure::RBTree, "🔴⚫ RB-Tree");
                     });
 
                     ui.add_space(16.0);
@@ -166,6 +184,7 @@ impl DsavApp {
                         DataStructure::Queue => self.queue_controls(ui),
                         DataStructure::LinkedList => self.linked_list_controls(ui),
                         DataStructure::BST => self.bst_controls(ui),
+                        DataStructure::RBTree => self.rb_tree_controls(ui),
                     }
 
                     ui.add_space(16.0);
@@ -204,6 +223,14 @@ impl DsavApp {
                                 "Status: Has nodes".to_string()
                             });
                         }
+                        DataStructure::RBTree => {
+                            ui.label(format!("Nodes: {}", self.rb_tree.size()));
+                            ui.label(if self.rb_tree.is_empty() {
+                                "Status: Empty".to_string()
+                            } else {
+                                "Status: Balanced RB-Tree".to_string()
+                            });
+                        }
                     }
 
                     if !self.current_steps.is_empty() {
@@ -233,6 +260,7 @@ impl DsavApp {
                     DataStructure::Queue => "🎯 Queue Visualization (FIFO)",
                     DataStructure::LinkedList => "🔗 Linked List Visualization",
                     DataStructure::BST => "🌲 Binary Search Tree Visualization",
+                    DataStructure::RBTree => "🔴⚫ Red-Black Tree Visualization",
                 });
             });
 
@@ -254,6 +282,7 @@ impl DsavApp {
                         DataStructure::Queue => self.render_queue(ui),
                         DataStructure::LinkedList => self.render_linked_list(ui),
                         DataStructure::BST => self.render_bst(ui),
+                        DataStructure::RBTree => self.render_rb_tree(ui),
                     }
                 },
             );
@@ -701,6 +730,99 @@ impl DsavApp {
         });
     }
 
+    fn rb_tree_controls(&mut self, ui: &mut egui::Ui) {
+        ui.group(|ui| {
+            ui.label("Operations:");
+
+            ui.horizontal(|ui| {
+                ui.label("Value:");
+                ui.add(egui::DragValue::new(&mut self.input_value).speed(1.0));
+            });
+
+            ui.horizontal(|ui| {
+                if ui.button("📥 Insert").clicked() {
+                    self.execute_rb_tree_operation(Operation::Insert(0, self.input_value));
+                }
+
+                if ui.button("🗑 Delete").clicked() {
+                    self.execute_rb_tree_operation(Operation::Delete(self.input_value as usize));
+                }
+
+                if ui.button("🔍 Search").clicked() {
+                    self.execute_rb_tree_operation(Operation::Search(self.input_value));
+                }
+            });
+        });
+
+        ui.add_space(8.0);
+
+        ui.group(|ui| {
+            ui.label("Traverse:");
+
+            if ui.button("🚶 In-Order").clicked() {
+                self.execute_rb_tree_operation(Operation::Traverse);
+            }
+        });
+
+        ui.add_space(8.0);
+
+        ui.group(|ui| {
+            ui.label("Visualization Options:");
+
+            ui.checkbox(&mut self.show_nil_nodes, "Show NIL leaves")
+                .on_hover_text("Display NIL (null) leaves as black nodes");
+
+            ui.add_space(4.0);
+
+            ui.horizontal(|ui| {
+                ui.label(format!("🔍 Zoom: {:.0}%", self.tree_zoom * 100.0));
+                if ui.button("Reset").clicked() {
+                    self.tree_zoom = 1.0;
+                }
+            });
+
+            ui.label("💡 Ctrl+Scroll to zoom in/out")
+                .on_hover_text("Hold Ctrl and scroll to zoom the tree view");
+        });
+
+        ui.add_space(8.0);
+
+        ui.group(|ui| {
+            ui.label("Randomize:");
+
+            ui.horizontal(|ui| {
+                ui.label("Size:");
+                ui.add(egui::DragValue::new(&mut self.randomize_size).clamp_range(1..=16).speed(0.1));
+            });
+
+            if ui.button("🎲 Randomize").clicked() {
+                use rand::Rng;
+                let mut rng = rand::thread_rng();
+
+                self.rb_tree.clear();
+                for _ in 0..self.randomize_size {
+                    let random_value = rng.gen_range(1..=100);
+                    self.rb_tree.insert(random_value);
+                }
+
+                self.current_steps.clear();
+                self.status_message = format!("Generated {} random elements", self.randomize_size);
+            }
+        });
+
+        ui.add_space(8.0);
+
+        ui.group(|ui| {
+            ui.label("Clear:");
+
+            if ui.button("🗑 Clear Tree").clicked() {
+                self.rb_tree.clear();
+                self.current_steps.clear();
+                self.status_message = "Red-Black Tree cleared".to_string();
+            }
+        });
+    }
+
     fn execute_array_operation(&mut self, operation: Operation) {
         match self.array.execute_with_steps(operation) {
             Ok(steps) => {
@@ -787,6 +909,27 @@ impl DsavApp {
 
     fn execute_bst_operation(&mut self, operation: Operation) {
         match self.bst.execute_with_steps(operation) {
+            Ok(steps) => {
+                if !steps.is_empty() {
+                    self.current_steps = steps;
+                    self.current_step_index = 0;
+                    self.playing = true;
+                    self.time_since_last_step = 0.0;
+                    if let Some(step) = self.current_steps.first() {
+                        self.status_message = step.description.clone();
+                    }
+                }
+            }
+            Err(e) => {
+                self.status_message = format!("Error: {}", e);
+                self.current_steps.clear();
+                self.playing = false;
+            }
+        }
+    }
+
+    fn execute_rb_tree_operation(&mut self, operation: Operation) {
+        match self.rb_tree.execute_with_steps(operation) {
             Ok(steps) => {
                 if !steps.is_empty() {
                     self.current_steps = steps;
@@ -1141,7 +1284,7 @@ impl DsavApp {
             });
     }
 
-    fn render_bst(&self, ui: &mut egui::Ui) {
+    fn render_bst(&mut self, ui: &mut egui::Ui) {
         let palette = self.current_theme.colors();
         let mut state = self.bst.render_state();
 
@@ -1201,19 +1344,32 @@ impl DsavApp {
             max_y = max_y.max(y);
         }
 
-        let canvas_width = (max_x + 100.0).max(600.0);
-        let canvas_height = (max_y + 100.0).max(400.0);
+        // Apply zoom to dimensions
+        let zoomed_width = (max_x + 100.0).max(600.0) * self.tree_zoom;
+        let zoomed_height = (max_y + 100.0).max(400.0) * self.tree_zoom;
 
         // Create scrollable area for the tree
         egui::ScrollArea::both()
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 let (response, painter) = ui.allocate_painter(
-                    egui::vec2(canvas_width, canvas_height),
-                    egui::Sense::hover(),
+                    egui::vec2(zoomed_width, zoomed_height),
+                    egui::Sense::click_and_drag(),
                 );
 
-                let to_screen = |pos: egui::Pos2| response.rect.min + pos.to_vec2();
+                // Handle Ctrl+Scroll for zoom
+                if response.hovered() && ui.input(|i| i.modifiers.ctrl) {
+                    let scroll_delta = ui.input(|i| i.smooth_scroll_delta.y);
+                    if scroll_delta != 0.0 {
+                        let zoom_delta = scroll_delta * 0.001;
+                        self.tree_zoom = (self.tree_zoom + zoom_delta).clamp(0.3, 3.0);
+                    }
+                }
+
+                let to_screen = |pos: egui::Pos2| {
+                    let zoomed_pos = egui::pos2(pos.x * self.tree_zoom, pos.y * self.tree_zoom);
+                    response.rect.min + zoomed_pos.to_vec2()
+                };
 
                 // Draw connections first (under nodes)
                 for &(parent_idx, child_idx) in &state.connections {
@@ -1224,7 +1380,7 @@ impl DsavApp {
 
                         painter.line_segment(
                             [start, end],
-                            egui::Stroke::new(2.0, palette.overlay),
+                            egui::Stroke::new(2.0 * self.tree_zoom, palette.overlay),
                         );
                     }
                 }
@@ -1239,21 +1395,188 @@ impl DsavApp {
                         let center = to_screen(egui::pos2(x, y));
                         let (bg_color, border_color) = self.get_element_colors(elem.state);
 
-                        // Draw node circle
+                        // Draw node circle (scaled)
                         painter.circle(
                             center,
-                            node_radius,
+                            node_radius * self.tree_zoom,
                             bg_color,
-                            egui::Stroke::new(3.0, border_color),
+                            egui::Stroke::new(3.0 * self.tree_zoom, border_color),
                         );
 
-                        // Draw value
+                        // Draw value (scaled font)
                         painter.text(
                             center,
                             egui::Align2::CENTER_CENTER,
                             elem.value.to_string(),
-                            egui::FontId::monospace(18.0),
+                            egui::FontId::monospace((18.0 * self.tree_zoom).max(8.0)),
                             palette.text,
+                        );
+                    }
+                }
+            });
+    }
+
+    fn render_rb_tree(&mut self, ui: &mut egui::Ui) {
+        let palette = self.current_theme.colors();
+        let mut state = if self.show_nil_nodes {
+            self.rb_tree.render_state_with_nil_nodes()
+        } else {
+            self.rb_tree.render_state()
+        };
+
+        // Early return if empty
+        if state.elements.is_empty() {
+            ui.vertical_centered(|ui| {
+                ui.add_space(50.0);
+                ui.label("Red-Black Tree is empty. Click 'Insert' to add nodes.");
+                ui.add_space(50.0);
+            });
+            return;
+        }
+
+        // Apply current step highlights
+        if !self.current_steps.is_empty() && self.current_step_index < self.current_steps.len() {
+            let current_step = &self.current_steps[self.current_step_index];
+
+            for &idx in &current_step.highlight_indices {
+                if idx < state.elements.len() {
+                    // Preserve color but add highlight
+                    if state.elements[idx].state != dsav_core::state::ElementState::Comparing {
+                        state.elements[idx].state = dsav_core::state::ElementState::Highlighted;
+                    }
+                }
+            }
+
+            for &idx in &current_step.active_indices {
+                if idx < state.elements.len() {
+                    state.elements[idx].state = dsav_core::state::ElementState::Active;
+                }
+            }
+        }
+
+        // Calculate tree layout positions
+        let node_radius = 25.0;
+        let level_height = 100.0;
+
+        // Find tree depth and calculate required width
+        let max_depth = self.calculate_tree_depth(&state);
+        let tree_width = self.calculate_subtree_width(0, &state);
+        let initial_width = tree_width.max(800.0);
+
+        // Calculate positions for each node
+        let mut positions = std::collections::HashMap::new();
+        self.calculate_node_positions(
+            0,
+            0,
+            0.0,
+            initial_width,
+            level_height,
+            &state,
+            &mut positions,
+        );
+
+        // Calculate required canvas size
+        let mut max_x = 0.0f32;
+        let mut max_y = 0.0f32;
+        for &(x, y) in positions.values() {
+            max_x = max_x.max(x);
+            max_y = max_y.max(y);
+        }
+
+        // Apply zoom to dimensions
+        let zoomed_width = (max_x + 100.0).max(600.0) * self.tree_zoom;
+        let zoomed_height = (max_y + 100.0).max(400.0) * self.tree_zoom;
+
+        // Create scrollable area for the tree
+        egui::ScrollArea::both()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                let (response, painter) = ui.allocate_painter(
+                    egui::vec2(zoomed_width, zoomed_height),
+                    egui::Sense::click_and_drag(),
+                );
+
+                // Handle Ctrl+Scroll for zoom
+                if response.hovered() && ui.input(|i| i.modifiers.ctrl) {
+                    let scroll_delta = ui.input(|i| i.smooth_scroll_delta.y);
+                    if scroll_delta != 0.0 {
+                        let zoom_delta = scroll_delta * 0.001;
+                        self.tree_zoom = (self.tree_zoom + zoom_delta).clamp(0.3, 3.0);
+                    }
+                }
+
+                let to_screen = |pos: egui::Pos2| {
+                    let zoomed_pos = egui::pos2(pos.x * self.tree_zoom, pos.y * self.tree_zoom);
+                    response.rect.min + zoomed_pos.to_vec2()
+                };
+
+                // Draw connections first (under nodes)
+                for &(parent_idx, child_idx) in &state.connections {
+                    if let (Some(&parent_pos), Some(&child_pos)) =
+                        (positions.get(&parent_idx), positions.get(&child_idx)) {
+                        let start = to_screen(egui::pos2(parent_pos.0, parent_pos.1 + node_radius));
+                        let end = to_screen(egui::pos2(child_pos.0, child_pos.1 - node_radius));
+
+                        painter.line_segment(
+                            [start, end],
+                            egui::Stroke::new(2.0 * self.tree_zoom, palette.overlay),
+                        );
+                    }
+                }
+
+                // Draw nodes on top
+                for (i, elem) in state.elements.iter().enumerate() {
+                    if elem.label.is_empty() {
+                        continue; // Skip empty slots
+                    }
+
+                    if let Some(&(x, y)) = positions.get(&i) {
+                        let center = to_screen(egui::pos2(x, y));
+
+                        // Determine node color (Red or Black)
+                        // Red nodes use Comparing state, Black nodes use Normal/Highlighted/Active
+                        let is_red_node = elem.state == dsav_core::state::ElementState::Comparing;
+
+                        let (bg_color, border_color) = if is_red_node {
+                            // Red node
+                            (palette.red.gamma_multiply(0.4), palette.red)
+                        } else {
+                            // Black node - may be highlighted or active
+                            match elem.state {
+                                dsav_core::state::ElementState::Highlighted => {
+                                    (palette.surface, palette.yellow)
+                                }
+                                dsav_core::state::ElementState::Active => {
+                                    (palette.green.gamma_multiply(0.3), palette.green)
+                                }
+                                _ => (palette.surface, palette.text.gamma_multiply(0.6))
+                            }
+                        };
+
+                        // Draw node circle (scaled)
+                        painter.circle(
+                            center,
+                            node_radius * self.tree_zoom,
+                            bg_color,
+                            egui::Stroke::new(3.0 * self.tree_zoom, border_color),
+                        );
+
+                        // Draw value (scaled font)
+                        painter.text(
+                            center,
+                            egui::Align2::CENTER_CENTER,
+                            elem.value.to_string(),
+                            egui::FontId::monospace((18.0 * self.tree_zoom).max(8.0)),
+                            palette.text,
+                        );
+
+                        // Draw R/B indicator below node (scaled)
+                        painter.text(
+                            to_screen(egui::pos2(x, y + node_radius + 12.0)),
+                            egui::Align2::CENTER_TOP,
+                            &elem.sublabel,
+                            egui::FontId::monospace((14.0 * self.tree_zoom).max(8.0)),
+                            if is_red_node { palette.red } else { palette.text.gamma_multiply(0.8) },
                         );
                     }
                 }
