@@ -175,6 +175,14 @@ bool AnimationController::hasAnimations() const {
     return !m_queue.empty() || !m_parallelGroup.empty();
 }
 
+void AnimationController::stepForward(float stepSize) {
+    // Temporarily unpause, advance by stepSize, then pause again
+    bool wasPaused = m_paused;
+    m_paused = false;
+    update(stepSize);
+    m_paused = true;
+}
+
 // ===== Helper Animation Creators =====
 
 Animation createMoveAnimation(glm::vec2& pos, const glm::vec2& target, float duration) {
