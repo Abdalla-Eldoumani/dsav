@@ -14,6 +14,12 @@ Terminal-based visualizer for data structures and algorithms, written in pure AR
   - ASCII tree display option
   - Search highlights path through tree
   - Level-order traversal shows breadth-first node visiting
+- **Red-Black Tree** - Self-balancing BST with insert, delete, search, and inorder traversal
+  - Colored node visualization (red/black backgrounds)
+  - Animated insertion with fixup (all 3 cases: recolor, triangle, line rotations)
+  - Animated deletion with fixup (all 4 cases)
+  - Property verification display (5 RB invariants)
+  - Automatic rebalancing after insertions and deletions
 
 ### Algorithms
 **Sorting:**
@@ -79,6 +85,7 @@ dsav-assembly/
 ├── queue_viz.asm         # Queue with accessor functions
 ├── linkedlist_viz.asm    # Linked list with malloc
 ├── bst_viz.asm           # Binary search tree
+├── rbt_viz.asm           # Red-black tree
 ├── sort_viz.asm          # Sorting algorithms
 ├── search_viz.asm        # Search algorithms
 └── Makefile              # Build configuration
