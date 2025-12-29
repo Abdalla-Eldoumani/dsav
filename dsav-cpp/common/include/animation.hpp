@@ -101,6 +101,9 @@ public:
 
     /** Check if currently processing a parallel group */
     bool isProcessingParallelGroup() const { return !m_parallelGroup.empty(); }
+    
+    /** Advance animation by one fixed step (for step-by-step playback) */
+    void stepForward(float stepSize = 0.1f);
 
 private:
     std::queue<Animation> m_queue;                // Sequential animation queue
