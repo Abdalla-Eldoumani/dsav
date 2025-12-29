@@ -7,6 +7,7 @@ add_executable(dsav-pure
     src/visualizers/array_visualizer.cpp
     src/visualizers/linked_list_visualizer.cpp
     src/visualizers/bst_visualizer.cpp
+    src/visualizers/rbtree_visualizer.cpp
     src/visualizers/sorting_visualizer.cpp
     src/visualizers/searching_visualizer.cpp
     src/algorithms/sorting.cpp
