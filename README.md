@@ -23,6 +23,10 @@ OpenGL-based graphical visualizer with two implementations:
 Everything written in C++. Works on any system with OpenGL support.
 
 **Recent updates:**
+- Red-Black Tree visualizer with insertion and deletion
+- Smooth rotation animations during RB tree rebalancing
+- Real-time fixup case explanations for RB tree operations
+- Step-by-step mode for all visualizers
 - Camera controls (pan, zoom, scroll) for all visualizers
 - Random initialization for data structures
 - Improved merge sort visualization with subarray highlighting
