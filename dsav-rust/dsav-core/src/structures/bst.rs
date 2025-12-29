@@ -43,27 +43,35 @@ impl VisualizableBST {
             self.root = Some(Box::new(Node::new(value)));
             self.size += 1;
         } else {
-            Self::insert_recursive(&mut self.root, value);
-            self.size += 1;
+            let inserted = Self::insert_recursive(&mut self.root, value);
+            if inserted {
+                self.size += 1;
+            }
         }
     }
 
-    fn insert_recursive(node: &mut Option<Box<Node>>, value: i32) {
+    fn insert_recursive(node: &mut Option<Box<Node>>, value: i32) -> bool {
         if let Some(n) = node {
             if value < n.value {
                 if n.left.is_none() {
                     n.left = Some(Box::new(Node::new(value)));
+                    true
                 } else {
-                    Self::insert_recursive(&mut n.left, value);
+                    Self::insert_recursive(&mut n.left, value)
                 }
             } else if value > n.value {
                 if n.right.is_none() {
                     n.right = Some(Box::new(Node::new(value)));
+                    true
                 } else {
-                    Self::insert_recursive(&mut n.right, value);
+                    Self::insert_recursive(&mut n.right, value)
                 }
+            } else {
+                // If value == n.value, we don't insert duplicates
+                false
             }
-            // If value == n.value, we don't insert duplicates
+        } else {
+            false
         }
     }
 
