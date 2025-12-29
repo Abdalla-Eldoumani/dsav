@@ -8,6 +8,10 @@ Graphical visualizer using OpenGL and Dear ImGui. Two versions available.
 Everything in C++. Works on any system with OpenGL.
 
 **Recent Updates:**
+- Red-Black Tree visualizer with insertion and deletion
+- Smooth rotation animations during RB tree rebalancing
+- Real-time fixup case explanations for RB tree operations
+- Step-by-step mode for all visualizers
 - Camera controls (pan, zoom, scroll) for all visualizers
 - Random initialization for data structures (1-20 elements)
 - Improved merge sort visualization with subarray highlighting
@@ -28,6 +32,7 @@ Contains basic stack visualizer only. Not feature-complete.
 - Queue
 - Linked List
 - Binary Search Tree
+- Red-Black Tree
 
 **Sorting:**
 - Bubble Sort
@@ -206,6 +211,15 @@ brew install glfw glm
 **Binary Search Tree:**
 - Random initialization uses shuffled values to prevent degenerate trees
 - Supports zoom and pan for navigating large trees
+
+**Red-Black Tree:**
+- Insert and delete operations with automatic rebalancing
+- Smooth animations show node movements during rotations
+- Red/black colors displayed as node borders
+- Real-time case explanations during fixup (Case 1: Uncle RED, Case 2: Triangle, Case 3: Line)
+- Optional NIL node visualization for educational purposes
+- Step-through mode to examine each fixup operation
+- Supports camera controls for large trees
 
 **Color Scheme (Catppuccin Mocha):**
 - Yellow: Comparing elements
