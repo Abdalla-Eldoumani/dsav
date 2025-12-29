@@ -10,6 +10,7 @@ Graphical visualizer using egui and OpenGL. Memory-safe implementation with mode
 - Queue (enqueue, dequeue, peek)
 - Linked List (insert, delete, update, search, traverse)
 - Binary Search Tree (insert, delete, search, traversals)
+- Red-Black Tree (insert, delete, search, traversals)
 
 **Sorting:**
 - Bubble Sort
@@ -29,6 +30,8 @@ Graphical visualizer using egui and OpenGL. Memory-safe implementation with mode
 - Smooth animations
 - Scrollable panels
 - Adjustable speed
+- Ctrl+Scroll zoom for tree views
+- Optional NIL leaf visualization for Red-Black Trees
 
 ## Requirements
 
@@ -92,6 +95,8 @@ Clean separation of concerns:
 - Vertical scrolling for control panel
 - Animation controls (play/pause/step)
 - Speed slider
+- Ctrl+Scroll to zoom tree views in/out
+- Toggle NIL leaves display for Red-Black Trees
 
 ## Technology Stack
 
