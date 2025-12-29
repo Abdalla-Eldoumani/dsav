@@ -31,6 +31,7 @@
 #include "visualizers/array_visualizer.hpp"
 #include "visualizers/linked_list_visualizer.hpp"
 #include "visualizers/bst_visualizer.hpp"
+#include "visualizers/rbtree_visualizer.hpp"
 #include "visualizers/sorting_visualizer.hpp"
 #include "visualizers/searching_visualizer.hpp"
 
@@ -332,6 +333,21 @@ int main(int argc, char** argv) {
                     appState.statusMessage = "Binary Search Tree selected";
                 }
                 if (isBSTActive) {
+                    ImGui::PopStyleColor();
+                }
+
+                // Red-Black Tree button
+                bool isRBTreeActive = appState.currentVisualizer &&
+                                      appState.currentVisualizer->getName() == "Red-Black Tree";
+                if (isRBTreeActive) {
+                    ImGui::PushStyleColor(ImGuiCol_Button,
+                        dsav::colors::toImGui(dsav::colors::semantic::active));
+                }
+                if (ImGui::Button("Red-Black Tree", ImVec2(-1, 0))) {
+                    appState.currentVisualizer = std::make_unique<dsav::RBTreeVisualizer>();
+                    appState.statusMessage = "Red-Black Tree selected";
+                }
+                if (isRBTreeActive) {
                     ImGui::PopStyleColor();
                 }
             }
