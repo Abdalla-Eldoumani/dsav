@@ -2183,7 +2183,7 @@ rb_display_menu:
 .Lfmt_int:              .string "%d "
 .Lnode_fmt:             .string "%02d"
 .Linorder_label:        .string "Inorder: "
-.Linorder_trav_msg:     .string "Inorder Traversal (Animated)"
+.Linorder_trav_msg:     .string "Inorder Traversal"
 .Lsample_complete:      .string "Sample tree complete!"
 .Ltree_branch_left:     .string "/"
 .Ltree_branch_right:    .string "\\"
