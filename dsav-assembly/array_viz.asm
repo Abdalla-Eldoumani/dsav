@@ -4,7 +4,7 @@
 define(fp, x29)
 define(lr, x30)
 
-.data
+    .data
 .balign 8
 
 array_max_size = 10                         // capacity in elements
@@ -47,7 +47,7 @@ label_index:        .string "Index:"
 label_value:        .string "Value:"
 label_size:         .string "Size: %d/%d"
 
-.text
+    .text
 .balign 4
 
 // array_menu - operations menu loop; returns when the user picks 0
@@ -462,10 +462,10 @@ array_display_done:
     ldp     fp, lr, [sp], 48
     ret
 
-.section .rodata
+    .section .rodata
 .Lindex_fmt: .string "%2d    "
 .Lvalue_fmt: .string "%4d  "
-.text
+    .text
 
 // array_get_interactive - prompt for an index, print the value there
     .global array_get_interactive
@@ -651,9 +651,9 @@ array_swap_done:
     ldp     fp, lr, [sp], 48
     ret
 
-.section .rodata
+    .section .rodata
 .Lswap_err: .string "\x1b[33mNeed at least 2 elements to swap!\x1b[0m"
-.text
+    .text
 
 // array_clear - drop every element and any highlight
     .global array_clear
