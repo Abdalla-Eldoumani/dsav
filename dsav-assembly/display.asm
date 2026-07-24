@@ -3,7 +3,7 @@
 define(fp, x29)
 define(lr, x30)
 
-.data
+    .data
     .balign 8
 
 // single-line box characters (utf-8)
@@ -33,7 +33,7 @@ char_d_t_left:      .string "\xe2\x95\xa3"        // ╣ (U+2563)
 
 char_space:         .string " "
 
-.text
+    .text
     .balign 4
 
 // draw_box(w0 = row, w1 = col, w2 = width, w3 = height, w4 = style)
