@@ -4,9 +4,10 @@
 *.out
 *.a
 
-# C/C++ executables
+# Executables
 dsav-pure
 dsav-asm-linked
+dsav-assembly/dsav
 
 # Rust build artifacts
 target/

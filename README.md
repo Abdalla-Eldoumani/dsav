@@ -1,118 +1,60 @@
 # Data Structures & Algorithms Visualizer
 
-Educational tool that shows how data structures and algorithms work through visual animations.
+One study tool, three implementations. Each animates the classic data
+structures and algorithms so you can watch them work: an ARMv8 assembly
+version in the terminal, a C++ version on OpenGL, and a Rust version on
+egui.
 
-## What's Inside
+## The versions
 
-This project has three versions:
+### Assembly (`dsav-assembly/`)
 
-### 1. Assembly Version (`dsav-assembly/`)
 Terminal visualizer in AArch64 assembly, animated with ANSI escape codes.
+Array, stack, queue, linked list, binary search tree, and red-black tree
+(animated insert/delete fixups); bubble, selection, insertion, merge, and
+quick sort; linear and binary search. Adjustable animation speed. Runs on
+ARM64 Linux, or any Linux with an AArch64 cross-compiler and qemu. It also
+runs in the browser as the multi-file example in the
+[aarch64 playground](https://github.com/Abdalla-Eldoumani/aarch64-playground).
 
-**Data Structures:** Array, Stack, Queue, Linked List, Binary Search Tree, Red-Black Tree (animated insert/delete fixups)
-**Sorting:** Bubble, Selection, Insertion, Merge, Quick Sort
-**Searching:** Linear, Binary Search (offers to sort an unsorted array first)
-**Features:** Adjustable animation speed (100-2500 ms), animated traversals and searches, colored red/black nodes
+### C++ (`dsav-cpp/`)
 
-**Runs on:** ARM64 Linux, or any Linux with an AArch64 cross-compiler and qemu
+OpenGL 3.3 + Dear ImGui. `dsav-pure` implements everything in C++ with
+step-by-step playback and drag/zoom camera controls, and builds on Linux,
+macOS, and Windows. `dsav-asm-linked` (ARM64) is a proof-of-concept that
+renders the stack visualizer over the real assembly implementation.
 
-### 2. C++ Version (`dsav-cpp/`)
-OpenGL-based graphical visualizer with two implementations:
+### Rust (`dsav-rust/`)
 
-#### Pure C++ (`pure-cpp/`)
-Everything written in C++. Works on any system with OpenGL support.
+egui + OpenGL workspace: a pure library crate holds the structures,
+algorithms, and unit tests; the GUI crate draws them with step-forward
+and step-back playback and ten switchable color themes. Builds on
+Windows, Linux, and macOS.
 
-**Recent updates:**
-- Red-Black Tree visualizer with insertion and deletion
-- Smooth rotation animations during RB tree rebalancing
-- Real-time fixup case explanations for RB tree operations
-- Step-by-step mode for all visualizers
-- Camera controls (pan, zoom, scroll) for all visualizers
-- Random initialization for data structures
-- Improved merge sort visualization with subarray highlighting
-- Fixed window management (no overlapping windows)
-- Linked list HEAD indicator points directly to first node
-- Linked list NULL displayed as actual node box
-- BST random initialization creates balanced trees
+## Quick start
 
-#### Assembly-Linked (`asm-linked/`)
-C++ handles graphics, assembly handles data structure operations. Shows how to call assembly code from C++.
-Contains basic stack visualizer only. Not feature-complete.
+    # assembly
+    cd dsav-assembly && make && ./dsav
 
-**Data Structures:** Same as assembly version
-**Graphics:** OpenGL 3.3, Dear ImGui for controls
-**Runs on:** x86/ARM Linux (pure-cpp), ARM64 Linux only (asm-linked)
+    # c++
+    cd dsav-cpp && mkdir build && cd build
+    cmake .. -DCMAKE_BUILD_TYPE=Release && cmake --build .
+    ./pure-cpp/dsav-pure
 
-### 3. Rust Version (`dsav-rust/`)
-Memory-safe implementation with modern graphical interface using egui and OpenGL.
+    # rust
+    cd dsav-rust && cargo run --release --bin dsav-gui
 
-**Data Structures:** Array (insert, delete, update, search), Stack (push, pop, peek), Queue (enqueue, dequeue, peek), Linked List (insert, delete, update, search, traverse), Binary Search Tree (insert, delete, search, traversals), Red-Black Tree (insert, delete, search, traversals)
-**Sorting:** Bubble, Selection, Insertion, Merge, Quick Sort
-**Searching:** Linear Search, Binary Search (auto-sorts array)
-**Graphics:** OpenGL 3.3, egui for UI, scrolling panels, adjustable animation speed, Ctrl+Scroll zoom for trees, NIL leaf visualization for Red-Black Trees
-**Runs on:** Windows, Linux, macOS (any platform with OpenGL 3.3+)
+Each version's README carries its requirements, full build notes, and
+controls.
 
-## Quick Start
+## Layout
 
-**Assembly version:**
-```bash
-cd dsav-assembly
-make
-./dsav
-```
+    dsav-assembly/     ARMv8 assembly, m4 + gcc, terminal ANSI animation
+    dsav-cpp/          C++17, GLFW + GLM + vendored GLAD + fetched ImGui
+    dsav-rust/         cargo workspace: dsav-core (library), dsav-gui (binary)
 
-**C++ version:**
-```bash
-cd dsav-cpp
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build .
-./pure-cpp/dsav-pure
-```
+The three versions share the same teaching goal and the same core feature
+set; each leans into its platform (the terminal's escape codes, ImGui's
+camera, egui's themes), so the details differ deliberately.
 
-**Rust version:**
-```bash
-cd dsav-rust
-cargo build --release
-cargo run --release --bin dsav-gui
-```
-
-## Requirements
-
-**Assembly:**
-- ARM64 processor or ARM cross-compiler
-- Linux with gcc and m4
-- Terminal with ANSI color support
-
-**C++:**
-- CMake 3.16+
-- GLFW3, GLM
-- OpenGL 3.3+ support
-- C++17 compiler
-
-**Rust:**
-- Rust 1.84.0+
-- OpenGL 3.3+ support
-- Cargo (comes with Rust)
-
-## Project Structure
-
-```
-dsav/
-├── dsav-assembly/     # ARM assembly implementation
-├── dsav-cpp/          # C++ implementations
-│   ├── common/        # Shared graphics code
-│   ├── pure-cpp/      # Pure C++ version
-│   └── asm-linked/    # C++ + Assembly version
-└── dsav-rust/         # Rust implementation
-    ├── dsav-core/     # Core library (data structures)
-    └── dsav-gui/      # GUI application (egui + OpenGL)
-```
-
-## Notes
-
-- Assembly version is for learning low-level programming
-- Pure C++ version is feature-complete and works on any modern system
-- Assembly-linked version shows C++/Assembly integration (proof-of-concept only)
-- Rust version demonstrates memory safety and modern UI
-- All complete versions have identical features and behavior
+MIT licensed.

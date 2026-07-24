@@ -1,119 +1,46 @@
 # Data Structures & Algorithms Visualizer - Rust
 
-Graphical visualizer using egui and OpenGL. Memory-safe implementation with modern UI.
+egui + OpenGL visualizer built as a two-crate workspace: the data
+structures and algorithms live in a pure library, the GUI binary draws
+them.
 
 ## Features
 
-**Data Structures:**
-- Array (insert, delete, update, search)
-- Stack (push, pop, peek)
-- Queue (enqueue, dequeue, peek)
-- Linked List (insert, delete, update, search, traverse)
-- Binary Search Tree (insert, delete, search, traversals)
-- Red-Black Tree (insert, delete, search, traversals)
-
-**Sorting:**
-- Bubble Sort
-- Selection Sort
-- Insertion Sort
-- Merge Sort
-- Quick Sort
-
-**Searching:**
-- Linear Search
-- Binary Search (auto-sorts array)
-
-**Graphics:**
-- egui immediate-mode UI
-- OpenGL 3.3 rendering
-- Catppuccin Mocha color theme
-- Smooth animations
-- Scrollable panels
-- Adjustable speed
-- Ctrl+Scroll zoom for tree views
-- Optional NIL leaf visualization for Red-Black Trees
+- Array, stack, queue, linked list, binary search tree, and red-black
+  tree, seeded with sample data on startup
+- Sorting (bubble, selection, insertion, merge, quick) and searching
+  (linear, binary with auto-sort) animated over the array
+- Playback: play/pause, step forward and back, jump to either end, a
+  step counter with a progress bar, and a logarithmic 0.25x-4x speed
+  slider
+- Ten switchable themes (Vibrant is the default; Tokyo Night, Dracula,
+  Gruvbox Dark, One Dark, Nord, Solarized Dark, Catppuccin Mocha,
+  Catppuccin Latte, High Contrast)
+- Tree views zoom with Ctrl+Scroll; red-black trees can show their NIL
+  leaves
 
 ## Requirements
 
-- Rust 1.84.0+
+- Rust 1.84.0+ (edition 2021)
 - OpenGL 3.3+
 - Windows, Linux, or macOS
 
 ## Building
 
-```bash
-# Build workspace
-cargo build --release
+    cargo run --release --bin dsav-gui
 
-# Run GUI application
-cargo run --release --bin dsav-gui
+    cargo test --workspace              # dsav-core's unit tests
+    cargo fmt --all
+    cargo clippy --workspace -- -D warnings
 
-# Run tests
-cargo test --workspace
+## Layout
 
-# Format and lint
-cargo fmt --all
-cargo clippy --workspace -- -D warnings
-```
+    dsav-core/    the library: structures/, algorithms/, the Visualizable
+                  trait, rendering state, and every unit test -- no GUI
+                  dependencies
+    dsav-gui/     the binary: winit + glutin window, glow GL context,
+                  egui UI and drawing in app.rs, themes in colors.rs
 
-## Project Structure
-
-```
-dsav-rust/
-├── dsav-core/          # Core library
-│   ├── src/
-│   │   ├── error.rs    # Error types
-│   │   ├── traits.rs   # Visualizable trait
-│   │   ├── state.rs    # Rendering state
-│   │   ├── structures/ # Data structure implementations
-│   │   └── algorithms/ # Algorithm implementations
-│   └── Cargo.toml
-│
-└── dsav-gui/           # GUI application
-    ├── src/
-    │   ├── main.rs     # Entry point
-    │   ├── app.rs      # UI and logic
-    │   ├── colors.rs   # Color palette
-    │   └── renderer/   # Rendering utilities
-    └── Cargo.toml
-```
-
-## Architecture
-
-Clean separation of concerns:
-
-**dsav-core**: Pure Rust library with no GUI dependencies. All data structure and algorithm logic. Fully testable.
-
-**dsav-gui**: Binary application using dsav-core. Handles windowing, rendering, and user interaction.
-
-## Controls
-
-- Click data structure tabs to switch views
-- Use buttons to perform operations
-- Binary Search automatically sorts before searching
-- Horizontal scrolling for Queue and Linked List
-- Vertical scrolling for control panel
-- Animation controls (play/pause/step)
-- Speed slider
-- Ctrl+Scroll to zoom tree views in/out
-- Toggle NIL leaves display for Red-Black Trees
-
-## Technology Stack
-
-| Component | Library | Version |
-|-----------|---------|---------|
-| Language | Rust | 1.84.0+ |
-| GUI | egui | 0.30 |
-| OpenGL | glow | 0.16 |
-| Window | winit | 0.30 |
-| Context | glutin | 0.32 |
-| Math | glam | 0.28 |
-| Errors | thiserror + anyhow | 2.0 + 1.0 |
-
-## Notes
-
-- Workspace-based Cargo project
-- Core library is reusable independently
-- Educational focus over performance
-- Comprehensive error handling with Result types
-- All unsafe code is in OpenGL bindings only
+Windowing is winit 0.30 with a glutin 0.32 OpenGL 3.3 context; egui 0.30
+renders through egui_glow; math is glam; errors are thiserror in the
+library and anyhow at the edges.
