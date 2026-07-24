@@ -863,6 +863,8 @@ rb_insert_anim_do_insert:
     mov     x0, x19
     mov     w1, w20
     bl      rb_insert
+    mov     w23, w1                      // keep the inserted/duplicate flag
+                                         // across the display calls
 
     bl      rb_display_tree_visual
 
@@ -870,7 +872,7 @@ rb_insert_anim_do_insert:
     mov     w1, 1
     bl      ansi_move_cursor
 
-    cmp     w1, 0
+    cmp     w23, 0
     b.eq    rb_insert_anim_dup_msg
 
     ldr     x0, =msg_inserted
