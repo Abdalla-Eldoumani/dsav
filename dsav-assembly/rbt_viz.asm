@@ -1107,15 +1107,11 @@ rb_transplant_root:
     str     x20, [x2]
 
 rb_transplant_set_parent:
-    ldr     x2, =rb_nil
-    ldr     x2, [x2]
-    cmp     x20, x2
-    b.eq    rb_transplant_done
-
+    // v takes u's parent even when v is the nil sentinel: the delete
+    // fixup climbs from x through this pointer.
     ldr     x2, [x19, RB_NODE_PARENT]
     str     x2, [x20, RB_NODE_PARENT]
 
-rb_transplant_done:
     ldp     x19, x20, [sp, 16]
     ldp     fp, lr, [sp], 32
     ret
@@ -1357,6 +1353,10 @@ rb_delete_two_children:
     str     x22, [x26, RB_NODE_PARENT]
 
 rb_delete_successor_is_child:
+    // x may be the nil sentinel; it still needs y as its parent for
+    // the fixup climb.
+    str     x22, [x24, RB_NODE_PARENT]
+
     mov     x0, x21
     mov     x1, x22
     bl      rb_transplant
@@ -1378,7 +1378,7 @@ rb_delete_no_left:
     b       rb_delete_fixup_check
 
 rb_delete_no_right:
-    mov     x24, x26
+    // x24 already holds the left child; splice it up (x26 is nil here)
     mov     x0, x21
     mov     x1, x24
     bl      rb_transplant
