@@ -4,7 +4,7 @@
 define(fp, x29)
 define(lr, x30)
 
-.data
+    .data
     .balign 8
 
 app_title:      .string "DATA STRUCTURES & ALGORITHMS VISUALIZER"
@@ -25,7 +25,7 @@ invalid_choice: .string "\x1b[31mInvalid choice! Please select 0-8.\x1b[0m"
 goodbye_msg:    .string "\n\x1b[32mThank you for using DSAV! Goodbye.\x1b[0m\n"
 test_msg:       .string "\x1b[33m[This feature is not yet implemented]\x1b[0m\n"
 
-.text
+    .text
     .balign 4
     .global main
 

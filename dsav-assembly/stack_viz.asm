@@ -4,7 +4,7 @@
 define(fp, x29)
 define(lr, x30)
 
-.data
+    .data
     .balign 8
 
 stack_max_size = 8
@@ -35,7 +35,7 @@ label_top:          .string "TOP"
 label_bottom:       .string "BOTTOM"
 label_size:         .string "Size: %d/%d"
 
-.text
+    .text
     .balign 4
 
 // stack_menu() - stack operations menu loop; choice 0 returns to main
@@ -531,13 +531,13 @@ stack_display_done:
     ldp     fp, lr, [sp], 48
     ret
 
-.section .rodata
+    .section .rodata
 .Lbox_top:      .string "┌───────────┐"
 .Lbox_mid:      .string "│   %4d    │"
 .Lbox_bot:      .string "└───────────┘"
 .Ltop_arrow:    .string " <- TOP"
 .Lbottom_label: .string "[BOTTOM]"
-.text
+    .text
 
 // stack_is_empty() -> w0 = 1 if empty, 0 otherwise
     .global stack_is_empty

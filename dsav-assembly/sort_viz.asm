@@ -4,7 +4,7 @@
 define(fp, x29)
 define(lr, x30)
 
-.data
+    .data
     .balign 8
 
 sort_array:         .skip 40                // temporary array for sorting (10 elements)
@@ -50,7 +50,7 @@ msg_sorted_marker:  .string "✓ Sorted"
 label_comparisons:  .string "Comparisons: %d"
 label_swaps:        .string "Swaps: %d"
 
-.text
+    .text
     .balign 4
 
 // sort_menu() - menu loop for the sorting module
@@ -412,10 +412,10 @@ sort_display_done:
     ldp     fp, lr, [sp], 96
     ret
 
-.section .rodata
+    .section .rodata
 .Lvalue_fmt:    .string "[%3d]"
 .Lspace:        .string " "
-.text
+    .text
 
 // sort_bubble_interactive() - speed prompt, then animated bubble sort
     .global sort_bubble_interactive
