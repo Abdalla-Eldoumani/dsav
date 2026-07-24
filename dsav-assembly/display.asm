@@ -257,7 +257,11 @@ print_centered:
     bl      strlen
     mov     w21, w0                         // string length
 
-    sub     w0, w20, w21
+    // a string wider than the field gets no padding, not a 2^31 run
+    subs    w0, w20, w21
+    b.pl    print_centered_have_pad
+    mov     w0, 0
+print_centered_have_pad:
     lsr     w0, w0, 1                       // padding = (width - length) / 2
     mov     w22, w0
 
