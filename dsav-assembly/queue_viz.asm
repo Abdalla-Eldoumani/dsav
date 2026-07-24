@@ -4,7 +4,7 @@
 define(fp, x29)
 define(lr, x30)
 
-.data
+    .data
     .balign 8
 
 queue_max_size = 8
@@ -37,7 +37,7 @@ label_front:        .string "FRONT"
 label_rear:         .string "REAR"
 label_count:        .string "Count: %d/%d"
 
-.text
+    .text
     .balign 4
 
 // queue_menu() - queue module loop: dispatch choices until 0
@@ -604,14 +604,14 @@ queue_display_done:
     ldp     fp, lr, [sp], 64
     ret
 
-.section .rodata
+    .section .rodata
 .Larrow_down:   .string "↓"
 .Lbox_line:     .string "└────┴────┴────┴────┴────┴────┴────┴────┘"
 .Lcell_start:   .string "│"
 .Lcell_end:     .string "│"
 .Lvalue_fmt:    .string "%3d "
 .Lcell_empty:   .string "│    "
-.text
+    .text
 
 // queue_is_empty() -> w0 = 1 if empty, 0 otherwise
     .global queue_is_empty
