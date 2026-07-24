@@ -3,7 +3,7 @@
 define(fp, x29)
 define(lr, x30)
 
-.data
+    .data
     .balign 8
 
 int_fmt:            .string "%d"
@@ -13,7 +13,7 @@ input_prompt:       .string "> "
 
 input_buffer:       .skip 64                // scratch space for user input
 
-.text
+    .text
     .balign 4
 
 // delay_ms(w0 = milliseconds)
@@ -195,9 +195,9 @@ print_newline:
     ldp     fp, lr, [sp], 16
     ret
 
-.section .rodata
+    .section .rodata
 .Lnewline: .string "\n"
-.text
+    .text
 
 // get_random(w0 = max) -> w0 = random value in [0, max)
     .global get_random
