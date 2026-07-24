@@ -16,6 +16,8 @@ sort_delay:         .word 500               // animation delay in ms
 highlight_idx1:     .word -1                // first highlighted index
 highlight_idx2:     .word -1                // second highlighted index
 sorted_up_to:       .word -1                // elements up to this index are sorted
+sorted_from:        .word -1                // elements from this index on are sorted
+                                            // (bubble grows its sorted run from the right)
 
 // for merge sort and quick sort
 merge_left:         .word -1                // left bound of current merge/partition
@@ -271,12 +273,13 @@ sort_init_done:
 // sorted prefix, and the active merge range
     .global sort_display_array
 sort_display_array:
-    stp     fp, lr, [sp, -80]!
+    stp     fp, lr, [sp, -96]!
     mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
     stp     x25, x26, [sp, 64]
+    str     x27, [sp, 80]
 
     ldr     x19, =sort_size
     ldr     w19, [x19]
@@ -292,6 +295,9 @@ sort_display_array:
 
     ldr     x23, =sorted_up_to
     ldr     w23, [x23]
+
+    ldr     x27, =sorted_from
+    ldr     w27, [x27]
 
     // active merge range for merge/quick visualization
     ldr     x25, =merge_left
@@ -343,6 +349,13 @@ sort_display_loop:
     cmp     w24, w23
     b.le    sort_display_sorted
 
+    // sorted suffix marker (bubble sort)
+    cmp     w27, 0
+    b.lt    sort_display_check_merge
+    cmp     w24, w27
+    b.ge    sort_display_sorted
+
+sort_display_check_merge:
     // check if in merge range (for merge/quick sort)
     cmp     w25, 0
     b.lt    sort_display_normal              // merge_left < 0, not in merge mode
@@ -391,11 +404,12 @@ sort_display_print:
 sort_display_done:
     bl      print_newline
 
+    ldr     x27, [sp, 80]
     ldp     x25, x26, [sp, 64]
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     fp, lr, [sp], 80
+    ldp     fp, lr, [sp], 96
     ret
 
 .section .rodata
@@ -517,22 +531,23 @@ bubble_no_swap:
     b       bubble_inner
 
 bubble_inner_done:
-    // mark last element as sorted
+    // the largest value just bubbled to slot n-i-1: grow the sorted
+    // suffix leftward
     sub     w0, w19, w21
     sub     w0, w0, 1
-    ldr     x23, =sorted_up_to
+    ldr     x23, =sorted_from
     str     w0, [x23]
 
     add     w21, w21, 1
     b       bubble_outer
 
 bubble_done:
-    // mark all as sorted
+    bl      sort_reset_highlights
+
+    // final frame: everything sorted
     sub     w0, w19, 1
     ldr     x23, =sorted_up_to
     str     w0, [x23]
-
-    bl      sort_reset_highlights
     bl      sort_display_array
 
     ldp     x23, x24, [sp, 48]
@@ -863,6 +878,9 @@ sort_reset_highlights:
     str     w0, [x1]
 
     ldr     x1, =sorted_up_to
+    str     w0, [x1]
+
+    ldr     x1, =sorted_from
     str     w0, [x1]
 
     ldr     x1, =merge_left
