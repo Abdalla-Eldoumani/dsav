@@ -647,6 +647,14 @@ search_run_binary:
     mov     w1, -1
     str     w1, [x0]
 
+    // clear the probe and gray-prefix markers too, or frames repaint
+    // cells a previous linear run scanned
+    ldr     x0, =current_idx
+    str     w1, [x0]
+
+    ldr     x0, =checked_up_to
+    str     w1, [x0]
+
     // binary search needs sorted input, offer to sort if it is not
     bl      search_check_if_sorted
     cmp     w0, 0
