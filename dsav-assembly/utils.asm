@@ -40,31 +40,45 @@ delay_us:
     ldp     fp, lr, [sp], 16
     ret
 
-// read_int() -> w0 = value, w1 = 1 on success, 0 on failure
+// read_int() -> w0 = value, w1 = 1 on success, 0 on end of input
+// a non-numeric line is flushed and reprompted, so callers get a real
+// number unless stdin has ended
     .global read_int
 read_int:
     stp     fp, lr, [sp, -32]!
     mov     fp, sp
 
+read_int_retry:
     sub     sp, sp, 16                      // scratch slot for scanf
     mov     x1, sp
     ldr     x0, =int_fmt
     bl      scanf
 
     cmp     w0, 1                           // items converted
-    b.ne    read_int_failed
+    b.ne    read_int_no_value
 
     ldr     w0, [sp]
+    add     sp, sp, 16
     mov     w1, 1
     b       read_int_done
 
-read_int_failed:
+read_int_no_value:
+    add     sp, sp, 16
+    cmp     w0, 0                           // negative means end of input
+    b.lt    read_int_eof
+
     bl      clear_input_buffer              // flush the bad line
+    ldr     x0, =invalid_input_msg
+    bl      printf
+    ldr     x0, =input_prompt
+    bl      printf
+    b       read_int_retry
+
+read_int_eof:
     mov     w0, 0
     mov     w1, 0
 
 read_int_done:
-    add     sp, sp, 16
     ldp     fp, lr, [sp], 32
     ret
 
