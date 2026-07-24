@@ -4,10 +4,6 @@
 define(fp, x29)
 define(lr, x30)
 
-// NULL stays an m4 define, not an equate: the old shared macros defined it
-// this way, and the substitution reaches the "NULL" string in the data below
-define(NULL, 0)
-
 .data
     .balign 8
 
@@ -700,7 +696,7 @@ list_search_anim_loop:
     mov     w1, 10
     bl      ansi_move_cursor
     ldr     x0, =.Lmsg_checking
-    ldr     w1, [x20, node_data_offset]
+    ldr     x1, [x20, node_data_offset]
     mov     w2, w21
     bl      printf
 
