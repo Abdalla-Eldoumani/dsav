@@ -4,7 +4,7 @@
 define(fp, x29)
 define(lr, x30)
 
-.data
+    .data
     .balign 8
 
 // node layout: data, then left and right child pointers, 8 bytes each
@@ -72,7 +72,7 @@ highlight_found:    .string "\x1b[42;30m"  // Green background
 highlight_path:     .string "\x1b[46;30m"  // Cyan background
 color_reset:        .string "\x1b[0m"
 
-.text
+    .text
     .balign 4
 
 // bst_create_node(w0 = value) -> x0 = new node, or 0 if malloc failed
@@ -1905,7 +1905,7 @@ levelorder_anim_done:
     ret
 
 // format strings and messages
-.data
+    .data
 fmt_int:            .string "%d "
 fmt_newline:        .string "\n"
 .Lsample_msg:       .string " Initialized with sample tree."
