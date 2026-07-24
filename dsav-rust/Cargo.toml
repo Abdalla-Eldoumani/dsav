@@ -6,8 +6,8 @@ resolver = "2"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.84.0"
-authors = ["DSAV Contributors"]
-license = "MIT OR Apache-2.0"
+authors = ["Abdalla Eldoumani"]
+license = "MIT"
 
 [profile.release]
 opt-level = 3
