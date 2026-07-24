@@ -1,26 +1,14 @@
-// ============================================================================
-// rbtree_viz.asm - Red-Black Tree Visualization Module
-// ============================================================================
-// Implements animated visualizations for Red-Black Tree operations:
-//   - Insert node with fixup (all 3 cases + rotations)
-//   - Search for value
-//   - Inorder traversal
-//   - RB property verification
-// ============================================================================
-// Red-Black Tree Properties:
-//   1. Every node is RED or BLACK
-//   2. Root is BLACK
-//   3. NIL leaves are BLACK
-//   4. RED nodes have BLACK children (no consecutive REDs)
-//   5. All paths from node to NIL have same black-height
-// ============================================================================
+// rbt_viz.asm - red-black tree: insert, delete, search, fixups
+// nodes are red or black, root and nil are black, a red node has black
+// children, and every root-to-nil path counts the same number of blacks
 
-include(`macros.m4')
+define(fp, x29)
+define(lr, x30)
 
-    .data
+.data
     .balign 8
 
-// Node structure constants
+// node field offsets and size
 define(RB_NODE_DATA, 0)
 define(RB_NODE_LEFT, 8)
 define(RB_NODE_RIGHT, 16)
@@ -28,16 +16,18 @@ define(RB_NODE_PARENT, 24)
 define(RB_NODE_COLOR, 32)
 define(RB_NODE_SIZE, 40)
 
+// node colors are plain 0/1 flags, not the old shared ansi color numbers
 define(COLOR_BLACK, 0)
 define(COLOR_RED, 1)
+NULL = 0
 
-// RB Tree State
+// tree state
 rb_root:            .quad 0
 rb_nil:             .quad 0
 rb_node_count:      .word 0
 rb_height:          .word 0
 
-// UI Strings
+// ui strings
 rb_title:           .string "RED-BLACK TREE VISUALIZATION"
 rb_menu_title:      .string "RED-BLACK TREE OPERATIONS"
 
@@ -67,7 +57,7 @@ msg_right:          .string "RIGHT"
 msg_deleted:        .string "\x1b[32m✓ Node %d deleted successfully\x1b[0m"
 msg_deleting:       .string "Deleting node: %d"
 
-// Property verification messages
+// property verification messages
 msg_prop_header:    .string "\x1b[1;36m=== RB TREE PROPERTIES ===\x1b[0m"
 msg_prop_1:         .string "✓ Property 1: All nodes are RED or BLACK"
 msg_prop_2:         .string "✓ Property 2: Root is BLACK"
@@ -77,7 +67,7 @@ msg_prop_5:         .string "✓ Property 5: Equal black-height on all paths"
 msg_prop_footer:    .string "\x1b[32mAll RB tree properties are satisfied!\x1b[0m"
 msg_node_info:      .string "Total nodes: %d | Tree height: %d | Balanced: ✓"
 
-// Color codes
+// highlight colors
 color_red_node:     .string "\x1b[41;97m"
 color_black_node:   .string "\x1b[47;30m"
 color_nil_node:     .string "\x1b[100;37m"
@@ -89,19 +79,16 @@ color_reset:        .string "\x1b[0m"
 
 rb_visual_delay:    .word 600
 
-    .text
+.text
     .balign 4
 
-// ============================================================================
-// rb_init_nil - Initialize NIL sentinel (idempotent, safe to call multiple times)
-// ============================================================================
+// rb_init_nil() - allocate the shared black nil sentinel (safe to call again)
     .global rb_init_nil
 rb_init_nil:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
-    adrp    x0, rb_nil
-    add     x0, x0, :lo12:rb_nil
+    ldr     x0, =rb_nil
     ldr     x1, [x0]
     cbnz    x1, init_nil_done
 
@@ -117,21 +104,18 @@ rb_init_nil:
     mov     w1, COLOR_BLACK
     strb    w1, [x0, RB_NODE_COLOR]
 
-    adrp    x1, rb_nil
-    add     x1, x1, :lo12:rb_nil
+    ldr     x1, =rb_nil
     str     x0, [x1]
 
 init_nil_done:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// rb_create_node - Create new RB node
-// ============================================================================
+// rb_create_node(w0 = value) -> x0 = new red node with nil children
     .global rb_create_node
 rb_create_node:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
 
     mov     w19, w0
@@ -144,8 +128,7 @@ rb_create_node:
 
     str     w19, [x0, RB_NODE_DATA]
 
-    adrp    x1, rb_nil
-    add     x1, x1, :lo12:rb_nil
+    ldr     x1, =rb_nil
     ldr     x1, [x1]
     str     x1, [x0, RB_NODE_LEFT]
     str     x1, [x0, RB_NODE_RIGHT]
@@ -158,16 +141,13 @@ rb_create_node:
 
 create_node_fail:
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// rb_get_color - Get color (BLACK if NIL)
-// ============================================================================
+// rb_get_color(x0 = node) -> w0 = color; nil and null read as black
     .global rb_get_color
 rb_get_color:
-    adrp    x1, rb_nil
-    add     x1, x1, :lo12:rb_nil
+    ldr     x1, =rb_nil
     ldr     x1, [x1]
     cmp     x0, x1
     b.eq    get_color_nil
@@ -180,13 +160,10 @@ get_color_nil:
     mov     w0, COLOR_BLACK
     ret
 
-// ============================================================================
-// rb_set_color - Set color (no-op if NIL)
-// ============================================================================
+// rb_set_color(x0 = node, w1 = color) - does nothing for nil or null
     .global rb_set_color
 rb_set_color:
-    adrp    x2, rb_nil
-    add     x2, x2, :lo12:rb_nil
+    ldr     x2, =rb_nil
     ldr     x2, [x2]
     cmp     x0, x2
     b.eq    set_color_done
@@ -197,13 +174,11 @@ rb_set_color:
 set_color_done:
     ret
 
-// ============================================================================
-// rotate_left - Left rotation
-// ============================================================================
+// rotate_left(x0 = pivot) - the right child takes the pivot's place
     .global rotate_left
 rotate_left:
-    stp     x29, x30, [sp, -48]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -48]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
 
@@ -215,8 +190,7 @@ rotate_left:
     ldr     x21, [x20, RB_NODE_LEFT]
     str     x21, [x19, RB_NODE_RIGHT]
 
-    adrp    x22, rb_nil
-    add     x22, x22, :lo12:rb_nil
+    ldr     x22, =rb_nil
     ldr     x22, [x22]
     cmp     x21, x22
     b.eq    rotate_left_skip_b_parent
@@ -239,8 +213,7 @@ rotate_left_x_was_left:
     b       rotate_left_finish
 
 rotate_left_at_root:
-    adrp    x21, rb_root
-    add     x21, x21, :lo12:rb_root
+    ldr     x21, =rb_root
     str     x20, [x21]
 
 rotate_left_finish:
@@ -250,16 +223,14 @@ rotate_left_finish:
 rotate_left_done:
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 48
+    ldp     fp, lr, [sp], 48
     ret
 
-// ============================================================================
-// rotate_right - Right rotation
-// ============================================================================
+// rotate_right(x0 = pivot) - the left child takes the pivot's place
     .global rotate_right
 rotate_right:
-    stp     x29, x30, [sp, -48]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -48]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
 
@@ -271,8 +242,7 @@ rotate_right:
     ldr     x21, [x20, RB_NODE_RIGHT]
     str     x21, [x19, RB_NODE_LEFT]
 
-    adrp    x22, rb_nil
-    add     x22, x22, :lo12:rb_nil
+    ldr     x22, =rb_nil
     ldr     x22, [x22]
     cmp     x21, x22
     b.eq    rotate_right_skip_b_parent
@@ -295,8 +265,7 @@ rotate_right_y_was_left:
     b       rotate_right_finish
 
 rotate_right_at_root:
-    adrp    x21, rb_root
-    add     x21, x21, :lo12:rb_root
+    ldr     x21, =rb_root
     str     x20, [x21]
 
 rotate_right_finish:
@@ -306,16 +275,14 @@ rotate_right_finish:
 rotate_right_done:
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 48
+    ldp     fp, lr, [sp], 48
     ret
 
-// ============================================================================
-// rb_insert_fixup - Fix RB properties
-// ============================================================================
+// rb_insert_fixup(x0 = new node) - recolor and rotate until the red rules hold
     .global rb_insert_fixup
 rb_insert_fixup:
-    stp     x29, x30, [sp, -64]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -64]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
@@ -404,8 +371,7 @@ fixup_case1_left:
     b       fixup_loop
 
 fixup_done:
-    adrp    x0, rb_root
-    add     x0, x0, :lo12:rb_root
+    ldr     x0, =rb_root
     ldr     x0, [x0]
     mov     w1, COLOR_BLACK
     bl      rb_set_color
@@ -413,16 +379,14 @@ fixup_done:
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 64
+    ldp     fp, lr, [sp], 64
     ret
 
-// ============================================================================
-// rb_insert - Insert value
-// ============================================================================
+// rb_insert(x0 = &root, w1 = value) -> x0 = root, w1 = 1 if inserted
     .global rb_insert
 rb_insert:
-    stp     x29, x30, [sp, -80]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -80]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
@@ -437,8 +401,7 @@ rb_insert:
     cbz     x24, rb_insert_done
 
     ldr     x21, [x19]
-    adrp    x25, rb_nil
-    add     x25, x25, :lo12:rb_nil
+    ldr     x25, =rb_nil
     ldr     x25, [x25]
 
     cmp     x21, x25
@@ -495,8 +458,7 @@ rb_insert_fixup_call:
     bl      rb_insert_fixup
 
 rb_insert_success:
-    adrp    x0, rb_node_count
-    add     x0, x0, :lo12:rb_node_count
+    ldr     x0, =rb_node_count
     ldr     w1, [x0]
     add     w1, w1, 1
     str     w1, [x0]
@@ -510,19 +472,16 @@ rb_insert_done:
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 80
+    ldp     fp, lr, [sp], 80
     ret
 
-// ============================================================================
-// rb_search - Search for value
-// ============================================================================
+// rb_search(x0 = root, w1 = value) -> x0 = matching node or 0
     .global rb_search
 rb_search:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
-    adrp    x2, rb_nil
-    add     x2, x2, :lo12:rb_nil
+    ldr     x2, =rb_nil
     ldr     x2, [x2]
 
 rb_search_loop:
@@ -547,22 +506,19 @@ rb_search_not_found:
     mov     x0, 0
 
 rb_search_found:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// rb_inorder - Inorder traversal
-// ============================================================================
+// rb_inorder(x0 = node) - print the subtree in sorted order
     .global rb_inorder
 rb_inorder:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
 
     mov     x19, x0
 
-    adrp    x20, rb_nil
-    add     x20, x20, :lo12:rb_nil
+    ldr     x20, =rb_nil
     ldr     x20, [x20]
     cmp     x19, x20
     b.eq    rb_inorder_done
@@ -571,8 +527,7 @@ rb_inorder:
     ldr     x0, [x19, RB_NODE_LEFT]
     bl      rb_inorder
 
-    adrp    x0, .Lfmt_int
-    add     x0, x0, :lo12:.Lfmt_int
+    ldr     x0, =.Lfmt_int
     ldr     w1, [x19, RB_NODE_DATA]
     bl      printf
 
@@ -580,27 +535,24 @@ rb_inorder:
     bl      rb_inorder
 
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
 
 rb_inorder_done:
     ret
 
-// ============================================================================
-// rb_free_all - Free all nodes
-// ============================================================================
+// rb_free_all(x0 = &root) - free the whole tree and zero the count
     .global rb_free_all
 rb_free_all:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
 
     mov     x19, x0
     ldr     x0, [x19]
 
-    // Only free if root is not NULL and not NIL
+    // free only a real tree (not null, not the sentinel)
     cbz     x0, rb_free_skip
-    adrp    x1, rb_nil
-    add     x1, x1, :lo12:rb_nil
+    ldr     x1, =rb_nil
     ldr     x1, [x1]
     cmp     x0, x1
     b.eq    rb_free_skip
@@ -611,24 +563,23 @@ rb_free_skip:
     mov     x0, 0
     str     x0, [x19]
 
-    adrp    x0, rb_node_count
-    add     x0, x0, :lo12:rb_node_count
+    ldr     x0, =rb_node_count
     mov     w1, 0
     str     w1, [x0]
 
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
+// rb_free_recursive(x0 = node) - post-order free; the shared sentinel stays
 rb_free_recursive:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
 
     mov     x19, x0
 
-    adrp    x20, rb_nil
-    add     x20, x20, :lo12:rb_nil
+    ldr     x20, =rb_nil
     ldr     x20, [x20]
     cmp     x19, x20
     b.eq    rb_free_rec_done
@@ -641,8 +592,7 @@ rb_free_recursive:
 
 rb_free_skip_left:
     ldr     x0, [x19, RB_NODE_RIGHT]
-    adrp    x20, rb_nil
-    add     x20, x20, :lo12:rb_nil
+    ldr     x20, =rb_nil
     ldr     x20, [x20]
     cmp     x0, x20
     b.eq    rb_free_skip_right
@@ -653,20 +603,19 @@ rb_free_skip_right:
     bl      free
 
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
 
 rb_free_rec_done:
     ret
 
-// ============================================================================
-// VISUALIZATION FUNCTIONS
-// ============================================================================
+// rb_draw_node_recursive(x0 = node, w1 = row, w2 = col, w3 = spread)
+// x4 and x5 pick nodes to draw highlighted
     .global rb_draw_node_recursive
 rb_draw_node_recursive:
     cbz     x0, rb_draw_node_done
 
-    stp     x29, x30, [sp, -112]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -112]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
@@ -680,8 +629,7 @@ rb_draw_node_recursive:
     mov     w21, w2
     mov     w22, w3
 
-    adrp    x23, rb_nil
-    add     x23, x23, :lo12:rb_nil
+    ldr     x23, =rb_nil
     ldr     x23, [x23]
 
     cmp     x19, x23
@@ -709,8 +657,7 @@ rb_draw_spacing_ok:
     add     w0, w20, 1
     sub     w1, w21, 1
     bl      ansi_move_cursor
-    adrp    x0, .Ltree_branch_left
-    add     x0, x0, :lo12:.Ltree_branch_left
+    ldr     x0, =.Ltree_branch_left
     bl      printf
 
 rb_draw_skip_left:
@@ -730,8 +677,7 @@ rb_draw_skip_left:
     add     w0, w20, 1
     add     w1, w21, 1
     bl      ansi_move_cursor
-    adrp    x0, .Ltree_branch_right
-    add     x0, x0, :lo12:.Ltree_branch_right
+    ldr     x0, =.Ltree_branch_right
     bl      printf
 
 rb_draw_skip_right:
@@ -751,36 +697,30 @@ rb_draw_skip_right:
     b.eq    rb_draw_red_node
 
 rb_draw_black_node:
-    adrp    x0, color_black_node
-    add     x0, x0, :lo12:color_black_node
+    ldr     x0, =color_black_node
     bl      printf
     b       rb_draw_print_value
 
 rb_draw_red_node:
-    adrp    x0, color_red_node
-    add     x0, x0, :lo12:color_red_node
+    ldr     x0, =color_red_node
     bl      printf
     b       rb_draw_print_value
 
 rb_draw_highlight_z:
-    adrp    x0, color_z
-    add     x0, x0, :lo12:color_z
+    ldr     x0, =color_z
     bl      printf
     b       rb_draw_print_value
 
 rb_draw_highlight_parent:
-    adrp    x0, color_parent
-    add     x0, x0, :lo12:color_parent
+    ldr     x0, =color_parent
     bl      printf
 
 rb_draw_print_value:
-    adrp    x0, .Lnode_fmt
-    add     x0, x0, :lo12:.Lnode_fmt
+    ldr     x0, =.Lnode_fmt
     ldr     w1, [x19, RB_NODE_DATA]
     bl      printf
 
-    adrp    x0, color_reset
-    add     x0, x0, :lo12:color_reset
+    ldr     x0, =color_reset
     bl      printf
 
     ldr     x5, [sp, 104]
@@ -790,20 +730,20 @@ rb_draw_print_value:
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 112
+    ldp     fp, lr, [sp], 112
 
 rb_draw_node_done:
     ret
 
+// rb_display_tree_visual() - clear the screen and draw the whole tree
     .global rb_display_tree_visual
 rb_display_tree_visual:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
     bl      ansi_clear_screen
 
-    adrp    x0, rb_node_count
-    add     x0, x0, :lo12:rb_node_count
+    ldr     x0, =rb_node_count
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    rb_display_visual_empty
@@ -811,13 +751,11 @@ rb_display_tree_visual:
     mov     w0, 2
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, rb_title
-    add     x0, x0, :lo12:rb_title
+    ldr     x0, =rb_title
     mov     w1, 80
     bl      print_centered
 
-    adrp    x0, rb_root
-    add     x0, x0, :lo12:rb_root
+    ldr     x0, =rb_root
     ldr     x0, [x0]
     mov     w1, 5
     mov     w2, 40
@@ -834,72 +772,61 @@ rb_display_visual_empty:
     mov     w0, 10
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_empty_tree
-    add     x0, x0, :lo12:msg_empty_tree
+    ldr     x0, =msg_empty_tree
     bl      printf
     bl      print_newline
 
 rb_display_visual_done:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// NEW: rb_insert_animated - Insert with ANIMATED path highlighting
-// ============================================================================
+// rb_insert_animated(x0 = &root, w1 = value) - animate the walk, then insert
     .global rb_insert_animated
 rb_insert_animated:
-    stp     x29, x30, [sp, -80]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -80]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
     str     x25, [sp, 64]
 
-    mov     x19, x0                      // x19 = root_ptr_ptr
+    mov     x19, x0                      // x19 = &root
     mov     w20, w1                      // w20 = value to insert
 
-    // Load delay
-    adrp    x25, rb_visual_delay
-    add     x25, x25, :lo12:rb_visual_delay
+    ldr     x25, =rb_visual_delay
     ldr     w25, [x25]
 
-    // Show search path animation
     ldr     x21, [x19]                   // x21 = current
-    adrp    x22, rb_nil
-    add     x22, x22, :lo12:rb_nil
+    ldr     x22, =rb_nil
     ldr     x22, [x22]
 
     cmp     x21, x22
     b.eq    rb_insert_anim_empty
     cbz     x21, rb_insert_anim_empty
 
-    // Animate search for insertion point
+    // walk down, redrawing with each visited node highlighted
 rb_insert_anim_search_loop:
-    // Clear and draw with current highlighted
     bl      ansi_clear_screen
     mov     w0, 2
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, rb_title
-    add     x0, x0, :lo12:rb_title
+    ldr     x0, =rb_title
     mov     w1, 80
     bl      print_centered
 
     mov     w0, 3
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_comparing
-    add     x0, x0, :lo12:msg_comparing
+    ldr     x0, =msg_comparing
     ldr     w1, [x21, RB_NODE_DATA]
     bl      printf
 
-    adrp    x0, rb_root
-    add     x0, x0, :lo12:rb_root
+    ldr     x0, =rb_root
     ldr     x0, [x0]
     mov     w1, 6
     mov     w2, 40
     mov     w3, 20
-    mov     x4, x21                      // Highlight current
+    mov     x4, x21                      // highlight current
     mov     x5, 0
     bl      rb_draw_node_recursive
 
@@ -908,7 +835,6 @@ rb_insert_anim_search_loop:
     mov     w0, w25
     bl      delay_ms
 
-    // Check which way to go
     ldr     w0, [x21, RB_NODE_DATA]
     cmp     w20, w0
     b.eq    rb_insert_anim_duplicate
@@ -933,12 +859,11 @@ rb_insert_anim_go_left:
 rb_insert_anim_empty:
 rb_insert_anim_duplicate:
 rb_insert_anim_do_insert:
-    // Now do actual insert
+    // hand off to the real insert
     mov     x0, x19
     mov     w1, w20
     bl      rb_insert
 
-    // Show final tree
     bl      rb_display_tree_visual
 
     mov     w0, 22
@@ -948,16 +873,14 @@ rb_insert_anim_do_insert:
     cmp     w1, 0
     b.eq    rb_insert_anim_dup_msg
 
-    adrp    x0, msg_inserted
-    add     x0, x0, :lo12:msg_inserted
+    ldr     x0, =msg_inserted
     mov     w1, w20
     bl      printf
     bl      print_newline
     b       rb_insert_anim_done
 
 rb_insert_anim_dup_msg:
-    adrp    x0, msg_duplicate
-    add     x0, x0, :lo12:msg_duplicate
+    ldr     x0, =msg_duplicate
     mov     w1, w20
     bl      printf
     bl      print_newline
@@ -967,28 +890,24 @@ rb_insert_anim_done:
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 80
+    ldp     fp, lr, [sp], 80
     ret
 
-// ============================================================================
-// NEW: rb_search_animated - Search with path highlighting
-// ============================================================================
+// rb_search_animated(x0 = root, w1 = target) -> x0 = node or 0
     .global rb_search_animated
 rb_search_animated:
-    stp     x29, x30, [sp, -48]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -48]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
 
     mov     x19, x0                      // x19 = root
     mov     w20, w1                      // w20 = target
 
-    adrp    x21, rb_visual_delay
-    add     x21, x21, :lo12:rb_visual_delay
+    ldr     x21, =rb_visual_delay
     ldr     w21, [x21]
 
-    adrp    x22, rb_nil
-    add     x22, x22, :lo12:rb_nil
+    ldr     x22, =rb_nil
     ldr     x22, [x22]
 
     cmp     x19, x22
@@ -1000,21 +919,18 @@ rb_search_anim_loop:
     mov     w0, 2
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, rb_title
-    add     x0, x0, :lo12:rb_title
+    ldr     x0, =rb_title
     mov     w1, 80
     bl      print_centered
 
     mov     w0, 3
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_searching
-    add     x0, x0, :lo12:msg_searching
+    ldr     x0, =msg_searching
     mov     w1, w20
     bl      printf
 
-    adrp    x0, rb_root
-    add     x0, x0, :lo12:rb_root
+    ldr     x0, =rb_root
     ldr     x0, [x0]
     mov     w1, 6
     mov     w2, 40
@@ -1056,29 +972,25 @@ rb_search_anim_found:
 rb_search_anim_done:
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 48
+    ldp     fp, lr, [sp], 48
     ret
 
-// ============================================================================
-// NEW: rb_inorder_animated - Inorder with node highlighting
-// ============================================================================
+// rb_inorder_animated(x0 = node) - inorder walk, redrawing at every visit
     .global rb_inorder_animated
 rb_inorder_animated:
     cbz     x0, rb_inorder_anim_done
 
-    stp     x29, x30, [sp, -48]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -48]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     str     x21, [sp, 32]
 
     mov     x19, x0
 
-    adrp    x20, rb_visual_delay
-    add     x20, x20, :lo12:rb_visual_delay
+    ldr     x20, =rb_visual_delay
     ldr     w20, [x20]
 
-    adrp    x21, rb_nil
-    add     x21, x21, :lo12:rb_nil
+    ldr     x21, =rb_nil
     ldr     x21, [x21]
 
     ldr     x0, [x19, RB_NODE_LEFT]
@@ -1092,20 +1004,17 @@ rb_inorder_anim_skip_left:
     mov     w0, 2
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, rb_title
-    add     x0, x0, :lo12:rb_title
+    ldr     x0, =rb_title
     mov     w1, 80
     bl      print_centered
 
     mov     w0, 3
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, .Linorder_trav_msg
-    add     x0, x0, :lo12:.Linorder_trav_msg
+    ldr     x0, =.Linorder_trav_msg
     bl      printf
 
-    adrp    x0, rb_root
-    add     x0, x0, :lo12:rb_root
+    ldr     x0, =rb_root
     ldr     x0, [x0]
     mov     w1, 6
     mov     w2, 40
@@ -1117,8 +1026,7 @@ rb_inorder_anim_skip_left:
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_visiting
-    add     x0, x0, :lo12:msg_visiting
+    ldr     x0, =msg_visiting
     ldr     w1, [x19, RB_NODE_DATA]
     bl      printf
 
@@ -1129,8 +1037,7 @@ rb_inorder_anim_skip_left:
     bl      delay_ms
 
     ldr     x0, [x19, RB_NODE_RIGHT]
-    adrp    x21, rb_nil
-    add     x21, x21, :lo12:rb_nil
+    ldr     x21, =rb_nil
     ldr     x21, [x21]
     cmp     x0, x21
     b.eq    rb_inorder_anim_skip_right
@@ -1139,24 +1046,21 @@ rb_inorder_anim_skip_left:
 rb_inorder_anim_skip_right:
     ldr     x21, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 48
+    ldp     fp, lr, [sp], 48
 
 rb_inorder_anim_done:
     ret
 
-// ============================================================================
-// rb_minimum - Find minimum node in subtree
-// ============================================================================
+// rb_minimum(x0 = node) -> x0 = leftmost node of the subtree
     .global rb_minimum
 rb_minimum:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     str     x19, [sp, 16]
 
     mov     x19, x0
 
-    adrp    x1, rb_nil
-    add     x1, x1, :lo12:rb_nil
+    ldr     x1, =rb_nil
     ldr     x1, [x1]
 
 rb_min_loop:
@@ -1170,16 +1074,14 @@ rb_min_loop:
 rb_min_done:
     mov     x0, x19
     ldr     x19, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// rb_transplant - Replace subtree u with subtree v
-// ============================================================================
+// rb_transplant(x0 = u, x1 = v) - splice subtree v into u's place
     .global rb_transplant
 rb_transplant:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
 
     mov     x19, x0                      // x19 = u
@@ -1201,13 +1103,11 @@ rb_transplant_left_child:
     b       rb_transplant_set_parent
 
 rb_transplant_root:
-    adrp    x2, rb_root
-    add     x2, x2, :lo12:rb_root
+    ldr     x2, =rb_root
     str     x20, [x2]
 
 rb_transplant_set_parent:
-    adrp    x2, rb_nil
-    add     x2, x2, :lo12:rb_nil
+    ldr     x2, =rb_nil
     ldr     x2, [x2]
     cmp     x20, x2
     b.eq    rb_transplant_done
@@ -1217,30 +1117,26 @@ rb_transplant_set_parent:
 
 rb_transplant_done:
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// rb_delete_fixup - Fix RB properties after deletion
-// ============================================================================
+// rb_delete_fixup(x0 = x) - rebalance after removing a black node
     .global rb_delete_fixup
 rb_delete_fixup:
-    stp     x29, x30, [sp, -80]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -80]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
     str     x25, [sp, 64]
 
-    mov     x19, x0                      // x19 = x (current node)
+    mov     x19, x0                      // x19 = x (fixup node)
 
-    adrp    x25, rb_nil
-    add     x25, x25, :lo12:rb_nil
+    ldr     x25, =rb_nil
     ldr     x25, [x25]
 
 rb_delete_fixup_loop:
-    adrp    x0, rb_root
-    add     x0, x0, :lo12:rb_root
+    ldr     x0, =rb_root
     ldr     x0, [x0]
     cmp     x19, x0
     b.eq    rb_delete_fixup_done
@@ -1398,23 +1294,21 @@ rb_delete_fixup_done:
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 80
+    ldp     fp, lr, [sp], 80
     ret
 
-// ============================================================================
-// rb_delete - Delete node with given value
-// ============================================================================
+// rb_delete(x0 = &root, w1 = value) -> w0 = 1 if deleted
     .global rb_delete
 rb_delete:
-    stp     x29, x30, [sp, -96]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -96]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
     stp     x25, x26, [sp, 64]
     str     x27, [sp, 80]
 
-    mov     x19, x0                      // x19 = root_ptr_ptr
+    mov     x19, x0                      // x19 = &root
     mov     w20, w1                      // w20 = value to delete
 
     ldr     x0, [x19]
@@ -1423,14 +1317,13 @@ rb_delete:
     mov     x21, x0                      // x21 = node to delete
     cbz     x21, rb_delete_not_found
 
-    adrp    x25, rb_nil
-    add     x25, x25, :lo12:rb_nil
+    ldr     x25, =rb_nil
     ldr     x25, [x25]
 
     mov     x22, x21                     // x22 = y (node to splice out)
     mov     x0, x21
     bl      rb_get_color
-    mov     w23, w0                      // w23 = y_original_color
+    mov     w23, w0                      // w23 = y's original color
 
     ldr     x24, [x21, RB_NODE_LEFT]
     cmp     x24, x25
@@ -1501,8 +1394,7 @@ rb_delete_success:
     mov     x0, x21
     bl      free
 
-    adrp    x0, rb_node_count
-    add     x0, x0, :lo12:rb_node_count
+    ldr     x0, =rb_node_count
     ldr     w1, [x0]
     sub     w1, w1, 1
     str     w1, [x0]
@@ -1519,33 +1411,28 @@ rb_delete_done:
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 96
+    ldp     fp, lr, [sp], 96
     ret
 
-// ============================================================================
-// rb_delete_animated - Delete with animated search
-// ============================================================================
+// rb_delete_animated(x0 = &root, w1 = value) - animate the walk, then delete
     .global rb_delete_animated
 rb_delete_animated:
-    stp     x29, x30, [sp, -80]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -80]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
     str     x25, [sp, 64]
 
-    mov     x19, x0                      // x19 = root_ptr_ptr
+    mov     x19, x0                      // x19 = &root
     mov     w20, w1                      // w20 = value to delete
 
-    // Load delay
-    adrp    x25, rb_visual_delay
-    add     x25, x25, :lo12:rb_visual_delay
+    ldr     x25, =rb_visual_delay
     ldr     w25, [x25]
 
-    // Animate search for node to delete
+    // walk down, redrawing with each visited node highlighted
     ldr     x21, [x19]                   // x21 = current
-    adrp    x22, rb_nil
-    add     x22, x22, :lo12:rb_nil
+    ldr     x22, =rb_nil
     ldr     x22, [x22]
 
     cmp     x21, x22
@@ -1553,31 +1440,27 @@ rb_delete_animated:
     cbz     x21, rb_delete_anim_not_found
 
 rb_delete_anim_search_loop:
-    // Clear and draw with current highlighted
     bl      ansi_clear_screen
     mov     w0, 2
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, rb_title
-    add     x0, x0, :lo12:rb_title
+    ldr     x0, =rb_title
     mov     w1, 80
     bl      print_centered
 
     mov     w0, 3
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_deleting
-    add     x0, x0, :lo12:msg_deleting
+    ldr     x0, =msg_deleting
     mov     w1, w20
     bl      printf
 
-    adrp    x0, rb_root
-    add     x0, x0, :lo12:rb_root
+    ldr     x0, =rb_root
     ldr     x0, [x0]
     mov     w1, 6
     mov     w2, 40
     mov     w3, 20
-    mov     x4, x21                      // Highlight current
+    mov     x4, x21                      // highlight current
     mov     x5, 0
     bl      rb_draw_node_recursive
 
@@ -1586,7 +1469,6 @@ rb_delete_anim_search_loop:
     mov     w0, w25
     bl      delay_ms
 
-    // Check if found
     ldr     w0, [x21, RB_NODE_DATA]
     cmp     w20, w0
     b.eq    rb_delete_anim_found
@@ -1609,20 +1491,18 @@ rb_delete_anim_go_left:
     b       rb_delete_anim_search_loop
 
 rb_delete_anim_found:
-    // Do actual delete
+    // hand off to the real delete
     mov     x0, x19
     mov     w1, w20
     bl      rb_delete
 
-    // Show final tree
     bl      rb_display_tree_visual
 
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_deleted
-    add     x0, x0, :lo12:msg_deleted
+    ldr     x0, =msg_deleted
     mov     w1, w20
     bl      printf
     bl      print_newline
@@ -1634,8 +1514,7 @@ rb_delete_anim_not_found:
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_not_found
-    add     x0, x0, :lo12:msg_not_found
+    ldr     x0, =msg_not_found
     mov     w1, w20
     bl      printf
     bl      print_newline
@@ -1645,36 +1524,30 @@ rb_delete_anim_done:
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 80
+    ldp     fp, lr, [sp], 80
     ret
 
-// ============================================================================
-// rb_delete_interactive - Interactive delete
-// ============================================================================
+// rb_delete_interactive() - prompt for a value and delete it
     .global rb_delete_interactive
 rb_delete_interactive:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     str     x19, [sp, 16]
 
     bl      ansi_clear_screen
 
-    adrp    x0, rb_node_count
-    add     x0, x0, :lo12:rb_node_count
+    ldr     x0, =rb_node_count
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    rb_delete_int_empty
 
-    adrp    x0, prompt_value
-    add     x0, x0, :lo12:prompt_value
+    ldr     x0, =prompt_value
     bl      printf
 
     bl      read_int
     mov     w19, w0
 
-    // Use ANIMATED delete
-    adrp    x0, rb_root
-    add     x0, x0, :lo12:rb_root
+    ldr     x0, =rb_root
     mov     w1, w19
     bl      rb_delete_animated
 
@@ -1685,71 +1558,59 @@ rb_delete_int_empty:
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_empty_tree
-    add     x0, x0, :lo12:msg_empty_tree
+    ldr     x0, =msg_empty_tree
     bl      printf
     bl      print_newline
 
 rb_delete_int_done:
     ldr     x19, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// rb_insert_interactive - Animated insert
-// ============================================================================
+// rb_insert_interactive() - prompt for a value and insert it
     .global rb_insert_interactive
 rb_insert_interactive:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     str     x19, [sp, 16]
 
     bl      ansi_clear_screen
 
-    adrp    x0, prompt_value
-    add     x0, x0, :lo12:prompt_value
+    ldr     x0, =prompt_value
     bl      printf
 
     bl      read_int
     mov     w19, w0
 
-    // Use ANIMATED insert
-    adrp    x0, rb_root
-    add     x0, x0, :lo12:rb_root
+    ldr     x0, =rb_root
     mov     w1, w19
     bl      rb_insert_animated
 
     ldr     x19, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// rb_search_interactive - Animated search
-// ============================================================================
+// rb_search_interactive() - prompt for a value and search for it
     .global rb_search_interactive
 rb_search_interactive:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     str     x19, [sp, 16]
 
     bl      ansi_clear_screen
 
-    adrp    x0, rb_node_count
-    add     x0, x0, :lo12:rb_node_count
+    ldr     x0, =rb_node_count
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    rb_search_int_empty
 
-    adrp    x0, prompt_value
-    add     x0, x0, :lo12:prompt_value
+    ldr     x0, =prompt_value
     bl      printf
 
     bl      read_int
     mov     w19, w0
 
-    // Use ANIMATED search
-    adrp    x0, rb_root
-    add     x0, x0, :lo12:rb_root
+    ldr     x0, =rb_root
     ldr     x0, [x0]
     mov     w1, w19
     bl      rb_search_animated
@@ -1763,8 +1624,7 @@ rb_search_interactive:
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_found
-    add     x0, x0, :lo12:msg_found
+    ldr     x0, =msg_found
     mov     w1, w19
     bl      printf
     bl      print_newline
@@ -1776,8 +1636,7 @@ rb_search_int_empty:
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_empty_tree
-    add     x0, x0, :lo12:msg_empty_tree
+    ldr     x0, =msg_empty_tree
     bl      printf
     bl      print_newline
     b       rb_search_int_done
@@ -1788,35 +1647,29 @@ rb_search_int_not_found:
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_not_found
-    add     x0, x0, :lo12:msg_not_found
+    ldr     x0, =msg_not_found
     mov     w1, w19
     bl      printf
     bl      print_newline
 
 rb_search_int_done:
     ldr     x19, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// rb_inorder_interactive - Animated inorder traversal
-// ============================================================================
+// rb_inorder_interactive() - run the animated traversal
 rb_inorder_interactive:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
     bl      ansi_clear_screen
 
-    adrp    x0, rb_node_count
-    add     x0, x0, :lo12:rb_node_count
+    ldr     x0, =rb_node_count
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    rb_inorder_int_empty
 
-    // Use ANIMATED inorder
-    adrp    x0, rb_root
-    add     x0, x0, :lo12:rb_root
+    ldr     x0, =rb_root
     ldr     x0, [x0]
     bl      rb_inorder_animated
 
@@ -1826,30 +1679,25 @@ rb_inorder_int_empty:
     mov     w0, 10
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_empty_tree
-    add     x0, x0, :lo12:msg_empty_tree
+    ldr     x0, =msg_empty_tree
     bl      printf
     bl      print_newline
 
 rb_inorder_int_done:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// rb_init_sample - Cleans up properly before initializing sample tree
-// ============================================================================
+// rb_init_sample() - replace the tree with a fixed eight-node sample
 rb_init_sample:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     str     x19, [sp, 16]
 
-    // Free existing tree
-    adrp    x0, rb_root
-    add     x0, x0, :lo12:rb_root
+    // drop the old tree first
+    ldr     x0, =rb_root
     bl      rb_free_all
 
-    adrp    x19, rb_root
-    add     x19, x19, :lo12:rb_root
+    ldr     x19, =rb_root
 
     mov     x0, x19
     mov     w1, 50
@@ -1888,114 +1736,97 @@ rb_init_sample:
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, .Lsample_complete
-    add     x0, x0, :lo12:.Lsample_complete
+    ldr     x0, =.Lsample_complete
     bl      printf
     bl      print_newline
 
     ldr     x19, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// rb_verify_interactive - Display properties of the RB tree
-// ============================================================================
+// rb_verify_interactive() - list the five red-black properties
 rb_verify_interactive:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
     bl      ansi_clear_screen
 
-    // Check if tree is empty
-    adrp    x0, rb_node_count
-    add     x0, x0, :lo12:rb_node_count
+    ldr     x0, =rb_node_count
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    rb_verify_empty
 
-    // Tree has nodes - display tree and properties
     bl      rb_display_tree_visual
 
-    // Properties start at row 25 (leave row 23 for "Press Enter to continue...")
+    // properties start at row 25; row 23 holds the press-enter prompt
     mov     w0, 25
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_prop_header
-    add     x0, x0, :lo12:msg_prop_header
+    ldr     x0, =msg_prop_header
     bl      printf
     bl      print_newline
 
     mov     w0, 26
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_prop_1
-    add     x0, x0, :lo12:msg_prop_1
+    ldr     x0, =msg_prop_1
     bl      printf
     bl      print_newline
 
     mov     w0, 27
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_prop_2
-    add     x0, x0, :lo12:msg_prop_2
+    ldr     x0, =msg_prop_2
     bl      printf
     bl      print_newline
 
     mov     w0, 28
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_prop_3
-    add     x0, x0, :lo12:msg_prop_3
+    ldr     x0, =msg_prop_3
     bl      printf
     bl      print_newline
 
     mov     w0, 29
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_prop_4
-    add     x0, x0, :lo12:msg_prop_4
+    ldr     x0, =msg_prop_4
     bl      printf
     bl      print_newline
 
     mov     w0, 30
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_prop_5
-    add     x0, x0, :lo12:msg_prop_5
+    ldr     x0, =msg_prop_5
     bl      printf
     bl      print_newline
 
     mov     w0, 31
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_prop_footer
-    add     x0, x0, :lo12:msg_prop_footer
+    ldr     x0, =msg_prop_footer
     bl      printf
     bl      print_newline
 
     b       rb_verify_done
 
 rb_verify_empty:
-    // Tree is empty - just show empty message
     mov     w0, 10
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_empty_tree
-    add     x0, x0, :lo12:msg_empty_tree
+    ldr     x0, =msg_empty_tree
     bl      printf
     bl      print_newline
 
 rb_verify_done:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// rb_menu - Don't free NIL on exit
-// ============================================================================
+// rb_menu() - module menu loop; frees the tree on exit, keeps the sentinel
     .global rb_menu
 rb_menu:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
     bl      rb_init_nil
 
@@ -2069,19 +1900,16 @@ rb_menu_delete:
     b       rb_menu_loop
 
 rb_menu_exit:
-    adrp    x0, rb_root
-    add     x0, x0, :lo12:rb_root
+    ldr     x0, =rb_root
     bl      rb_free_all
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// rb_display_menu - Display menu options
-// ============================================================================
+// rb_display_menu() - draw the menu box and options
     .global rb_display_menu
 rb_display_menu:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
     mov     w0, 3
     mov     w1, 15
@@ -2093,8 +1921,7 @@ rb_display_menu:
     mov     w0, 4
     mov     w1, 17
     bl      ansi_move_cursor
-    adrp    x0, rb_menu_title
-    add     x0, x0, :lo12:rb_menu_title
+    ldr     x0, =rb_menu_title
     mov     w1, 46
     bl      print_centered
 
@@ -2107,57 +1934,49 @@ rb_display_menu:
     mov     w0, 7
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_rb_1
-    add     x0, x0, :lo12:menu_rb_1
+    ldr     x0, =menu_rb_1
     bl      printf
 
     mov     w0, 8
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_rb_2
-    add     x0, x0, :lo12:menu_rb_2
+    ldr     x0, =menu_rb_2
     bl      printf
 
     mov     w0, 9
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_rb_3
-    add     x0, x0, :lo12:menu_rb_3
+    ldr     x0, =menu_rb_3
     bl      printf
 
     mov     w0, 10
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_rb_4
-    add     x0, x0, :lo12:menu_rb_4
+    ldr     x0, =menu_rb_4
     bl      printf
 
     mov     w0, 11
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_rb_5
-    add     x0, x0, :lo12:menu_rb_5
+    ldr     x0, =menu_rb_5
     bl      printf
 
     mov     w0, 12
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_rb_6
-    add     x0, x0, :lo12:menu_rb_6
+    ldr     x0, =menu_rb_6
     bl      printf
 
     mov     w0, 13
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_rb_7
-    add     x0, x0, :lo12:menu_rb_7
+    ldr     x0, =menu_rb_7
     bl      printf
 
     mov     w0, 14
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_rb_0
-    add     x0, x0, :lo12:menu_rb_0
+    ldr     x0, =menu_rb_0
     bl      printf
 
     mov     w0, 17
@@ -2169,17 +1988,14 @@ rb_display_menu:
     mov     w0, 18
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_prompt
-    add     x0, x0, :lo12:menu_prompt
+    ldr     x0, =menu_prompt
     bl      printf
 
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// Format strings
-// ============================================================================
-    .data
+// format strings
+.data
 .Lfmt_int:              .string "%d "
 .Lnode_fmt:             .string "%02d"
 .Linorder_label:        .string "Inorder: "

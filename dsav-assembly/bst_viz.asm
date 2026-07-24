@@ -1,42 +1,25 @@
-// ============================================================================
-// bst_viz.asm - Binary Search Tree Visualization Module
-// ============================================================================
-// Implements animated visualizations for BST operations:
-//   - Insert node
-//   - Delete node
-//   - Search for value
-//   - Inorder traversal
-//   - Preorder traversal
-//   - Postorder traversal
-// ============================================================================
+// bst_viz.asm - binary search tree: insert, delete, search, four traversals
+// every operation redraws the tree with ANSI cursor moves
 
-include(`macros.m4')
+define(fp, x29)
+define(lr, x30)
 
-    .data
+.data
     .balign 8
 
-// ----------------------------------------------------------------------------
-// BST Node Structure (24 bytes)
-// ----------------------------------------------------------------------------
-// Offset 0:  data (8 bytes)
-// Offset 8:  left child pointer (8 bytes)
-// Offset 16: right child pointer (8 bytes)
-// ----------------------------------------------------------------------------
+// node layout: data, then left and right child pointers, 8 bytes each
 define(NODE_DATA, 0)
 define(NODE_LEFT, 8)
 define(NODE_RIGHT, 16)
 define(NODE_SIZE, 24)
+NULL = 0
 
-// ----------------------------------------------------------------------------
-// BST State
-// ----------------------------------------------------------------------------
+// tree state
 bst_root:           .quad 0                 // Root pointer
 bst_node_count:     .word 0                 // Number of nodes in tree
 bst_height:         .word 0                 // Tree height
 
-// ----------------------------------------------------------------------------
-// UI Strings
-// ----------------------------------------------------------------------------
+// ui strings
 bst_title:          .string "BINARY SEARCH TREE VISUALIZATION"
 bst_menu_title:     .string "BST OPERATIONS MENU"
 
@@ -89,26 +72,21 @@ highlight_found:    .string "\x1b[42;30m"  // Green background
 highlight_path:     .string "\x1b[46;30m"  // Cyan background
 color_reset:        .string "\x1b[0m"
 
-    .text
+.text
     .balign 4
 
-// ============================================================================
-// bst_create_node - Create a new BST node
-// ============================================================================
-// Input:  w0 = data value
-// Output: x0 = pointer to new node (or 0 if allocation failed)
-// ============================================================================
+// bst_create_node(w0 = value) -> x0 = new node, or 0 if malloc failed
     .global bst_create_node
 bst_create_node:
-    stp     x29, x30, [sp, -32]!        // Save fp/lr, allocate frame
-    mov     x29, sp
-    stp     x19, x20, [sp, 16]          // Save callee-saved
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
+    stp     x19, x20, [sp, 16]
 
     mov     w19, w0                      // Save data value
 
     // Allocate memory for node
     mov     x0, NODE_SIZE                // Size of node
-    bl      malloc                       // Call malloc
+    bl      malloc
     cbz     x0, create_node_fail         // Check if allocation failed
 
     // Initialize node
@@ -118,22 +96,17 @@ bst_create_node:
     str     x1, [x0, NODE_RIGHT]         // right = NULL
 
 create_node_fail:
-    ldp     x19, x20, [sp, 16]          // Restore registers
-    ldp     x29, x30, [sp], 32
+    ldp     x19, x20, [sp, 16]
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// bst_insert - Insert a value into BST
-// ============================================================================
-// Input:  x0 = pointer to root pointer
-//         w1 = value to insert
-// Output: x0 = new root pointer
-// ============================================================================
+// bst_insert(x0 = &root, w1 = value) -> x0 = root
+// duplicates are dropped, not inserted twice
     .global bst_insert
 bst_insert:
-    stp     x29, x30, [sp, -64]!        // Save fp/lr
-    mov     x29, sp
-    stp     x19, x20, [sp, 16]          // Save callee-saved
+    stp     fp, lr, [sp, -64]!
+    mov     fp, sp
+    stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
 
@@ -186,8 +159,7 @@ insert_duplicate:
 
 insert_success:
     // Increment node count
-    adrp    x0, bst_node_count
-    add     x0, x0, :lo12:bst_node_count
+    ldr     x0, =bst_node_count
     ldr     w1, [x0]
     add     w1, w1, 1
     str     w1, [x0]
@@ -198,16 +170,10 @@ insert_done:
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 64
+    ldp     fp, lr, [sp], 64
     ret
 
-// ============================================================================
-// bst_search - Search for a value in BST
-// ============================================================================
-// Input:  x0 = root pointer
-//         w1 = value to search
-// Output: x0 = pointer to node (or 0 if not found)
-// ============================================================================
+// bst_search(x0 = root, w1 = value) -> x0 = node, or 0 if not found
     .global bst_search
 bst_search:
     cbz     x0, search_not_found         // Empty tree (x0 = current)
@@ -233,12 +199,7 @@ search_not_found:
 search_found:
     ret
 
-// ============================================================================
-// bst_find_min - Find minimum value node in subtree
-// ============================================================================
-// Input:  x0 = root of subtree
-// Output: x0 = pointer to node with minimum value
-// ============================================================================
+// bst_find_min(x0 = subtree) -> x0 = leftmost node
     .global bst_find_min
 bst_find_min:
     cbz     x0, find_min_done
@@ -252,17 +213,11 @@ find_min_loop:
 find_min_done:
     ret
 
-// ============================================================================
-// bst_delete - Delete a value from BST
-// ============================================================================
-// Input:  x0 = pointer to root pointer
-//         w1 = value to delete
-// Output: x0 = new root pointer
-// ============================================================================
+// bst_delete(x0 = &root, w1 = value) -> x0 = new root
     .global bst_delete
 bst_delete:
-    stp     x29, x30, [sp, -48]!        // Save fp/lr
-    mov     x29, sp
+    stp     fp, lr, [sp, -48]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
 
@@ -276,21 +231,16 @@ bst_delete:
     mov     x0, x0                       // Return root
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 48
+    ldp     fp, lr, [sp], 48
     ret
 
-// ============================================================================
-// bst_delete_node - Recursive helper for delete
-// ============================================================================
-// Input:  x0 = current node
-//         w20 = value to delete (from parent function)
-// Output: x0 = new subtree root
-// ============================================================================
+// bst_delete_node(x0 = node, w20 = target) -> x0 = new subtree root
+// recursive helper: the target value rides in w20, not w1
 bst_delete_node:
     cbz     x0, delete_not_found         // Base case: not found
 
-    stp     x29, x30, [sp, -48]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -48]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
 
@@ -358,21 +308,16 @@ delete_not_found:
 delete_done:
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 48
+    ldp     fp, lr, [sp], 48
     ret
 
-// ============================================================================
-// bst_inorder - Inorder traversal (Left-Root-Right)
-// ============================================================================
-// Input:  x0 = root pointer
-// Output: Prints values in sorted order
-// ============================================================================
+// bst_inorder(x0 = root) - print left-root-right (sorted order)
     .global bst_inorder
 bst_inorder:
     cbz     x0, inorder_done
 
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
 
     mov     x19, x0                      // Save current node
@@ -382,8 +327,7 @@ bst_inorder:
     bl      bst_inorder
 
     // Print current
-    adrp    x0, fmt_int
-    add     x0, x0, :lo12:fmt_int
+    ldr     x0, =fmt_int
     ldr     w1, [x19, NODE_DATA]
     bl      printf
 
@@ -392,27 +336,24 @@ bst_inorder:
     bl      bst_inorder
 
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
 
 inorder_done:
     ret
 
-// ============================================================================
-// bst_preorder - Preorder traversal (Root-Left-Right)
-// ============================================================================
+// bst_preorder(x0 = root) - print root-left-right
     .global bst_preorder
 bst_preorder:
     cbz     x0, preorder_done
 
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
 
     mov     x19, x0
 
     // Print current
-    adrp    x0, fmt_int
-    add     x0, x0, :lo12:fmt_int
+    ldr     x0, =fmt_int
     ldr     w1, [x19, NODE_DATA]
     bl      printf
 
@@ -425,20 +366,18 @@ bst_preorder:
     bl      bst_preorder
 
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
 
 preorder_done:
     ret
 
-// ============================================================================
-// bst_postorder - Postorder traversal (Left-Right-Root)
-// ============================================================================
+// bst_postorder(x0 = root) - print left-right-root
     .global bst_postorder
 bst_postorder:
     cbz     x0, postorder_done
 
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
 
     mov     x19, x0
@@ -452,29 +391,23 @@ bst_postorder:
     bl      bst_postorder
 
     // Print current
-    adrp    x0, fmt_int
-    add     x0, x0, :lo12:fmt_int
+    ldr     x0, =fmt_int
     ldr     w1, [x19, NODE_DATA]
     bl      printf
 
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
 
 postorder_done:
     ret
 
-// ============================================================================
-// bst_levelorder - Level-order traversal (Breadth-First)
-// ============================================================================
-// Input:  x0 = root pointer
-// Output: Prints values in level-order
-// ============================================================================
+// bst_levelorder(x0 = root) - print breadth-first
     .global bst_levelorder
 bst_levelorder:
     cbz     x0, levelorder_done              // Empty tree
 
-    stp     x29, x30, [sp, -64]!             // Allocate stack frame
-    mov     x29, sp
+    stp     fp, lr, [sp, -64]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
@@ -482,8 +415,7 @@ bst_levelorder:
     mov     x19, x0                          // x19 = root
 
     // Use static global queue
-    adrp    x20, levelorder_queue
-    add     x20, x20, :lo12:levelorder_queue // x20 = queue base
+    ldr     x20, =levelorder_queue           // x20 = queue base
 
     mov     w21, 0                           // w21 = front index
     mov     w22, 0                           // w22 = rear index
@@ -505,8 +437,7 @@ levelorder_loop:
     sub     w23, w23, 1                      // count--
 
     // Print current node
-    adrp    x0, fmt_int
-    add     x0, x0, :lo12:fmt_int
+    ldr     x0, =fmt_int
     ldr     w1, [x19, NODE_DATA]
     bl      printf
 
@@ -534,20 +465,16 @@ levelorder_complete:
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 64
+    ldp     fp, lr, [sp], 64
 
 levelorder_done:
     ret
 
-// ============================================================================
-// bst_free_all - Free all nodes in tree
-// ============================================================================
-// Input:  x0 = pointer to root pointer
-// ============================================================================
+// bst_free_all(x0 = &root) - free every node, zero the root and count
     .global bst_free_all
 bst_free_all:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
 
     mov     x19, x0                      // Save root pointer address
@@ -558,20 +485,20 @@ bst_free_all:
     str     x0, [x19]                    // Set root to NULL
 
     // Reset node count
-    adrp    x0, bst_node_count
-    add     x0, x0, :lo12:bst_node_count
+    ldr     x0, =bst_node_count
     mov     w1, 0
     str     w1, [x0]
 
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
+// bst_free_recursive(x0 = node) - postorder free
 bst_free_recursive:
     cbz     x0, free_rec_done
 
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
 
     mov     x19, x0
@@ -589,21 +516,16 @@ bst_free_recursive:
     bl      free
 
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
 
 free_rec_done:
     ret
 
-// ============================================================================
-// FUNCTION: bst_menu
-// Main menu for BST operations
-// Parameters: none
-// Returns: none
-// ============================================================================
+// bst_menu() - operations menu loop; frees the tree on exit
     .global bst_menu
 bst_menu:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
 bst_menu_loop:
     // Clear screen and display menu
@@ -612,7 +534,7 @@ bst_menu_loop:
 
     // Get user choice
     mov     w0, 0                            // min
-    mov     w1, 9                            // max (updated for new menu option)
+    mov     w1, 9                            // max
     bl      read_int_range
 
     // Dispatch based on choice
@@ -695,28 +617,22 @@ bst_menu_display_tree:
 
 bst_menu_exit:
     // Free tree before exit
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     bl      bst_free_all
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: display_bst_menu
-// Displays the BST operations menu
-// Parameters: none
-// Returns: none
-// ============================================================================
+// display_bst_menu() - draw the menu box and options
     .global display_bst_menu
 display_bst_menu:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
     // Draw menu box
     mov     w0, 3                            // row
     mov     w1, 15                           // column
     mov     w2, 50                           // width
-    mov     w3, 20                           // height (increased for options 7, 8, 9)
+    mov     w3, 20                           // height
     mov     w4, 1                            // double-line style
     bl      draw_box
 
@@ -724,8 +640,7 @@ display_bst_menu:
     mov     w0, 4
     mov     w1, 17
     bl      ansi_move_cursor
-    adrp    x0, bst_menu_title
-    add     x0, x0, :lo12:bst_menu_title
+    ldr     x0, =bst_menu_title
     mov     w1, 46
     bl      print_centered
 
@@ -740,71 +655,61 @@ display_bst_menu:
     mov     w0, 7
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_bst_1
-    add     x0, x0, :lo12:menu_bst_1
+    ldr     x0, =menu_bst_1
     bl      printf
 
     mov     w0, 8
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_bst_2
-    add     x0, x0, :lo12:menu_bst_2
+    ldr     x0, =menu_bst_2
     bl      printf
 
     mov     w0, 9
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_bst_3
-    add     x0, x0, :lo12:menu_bst_3
+    ldr     x0, =menu_bst_3
     bl      printf
 
     mov     w0, 10
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_bst_4
-    add     x0, x0, :lo12:menu_bst_4
+    ldr     x0, =menu_bst_4
     bl      printf
 
     mov     w0, 11
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_bst_5
-    add     x0, x0, :lo12:menu_bst_5
+    ldr     x0, =menu_bst_5
     bl      printf
 
     mov     w0, 12
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_bst_6
-    add     x0, x0, :lo12:menu_bst_6
+    ldr     x0, =menu_bst_6
     bl      printf
 
     mov     w0, 13
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_bst_7
-    add     x0, x0, :lo12:menu_bst_7
+    ldr     x0, =menu_bst_7
     bl      printf
 
     mov     w0, 14
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_bst_8
-    add     x0, x0, :lo12:menu_bst_8
+    ldr     x0, =menu_bst_8
     bl      printf
 
     mov     w0, 15
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_bst_9
-    add     x0, x0, :lo12:menu_bst_9
+    ldr     x0, =menu_bst_9
     bl      printf
 
     mov     w0, 16
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_bst_0
-    add     x0, x0, :lo12:menu_bst_0
+    ldr     x0, =menu_bst_0
     bl      printf
 
     // Print separator
@@ -818,38 +723,30 @@ display_bst_menu:
     mov     w0, 19
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_prompt
-    add     x0, x0, :lo12:menu_prompt
+    ldr     x0, =menu_prompt
     bl      printf
 
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: bst_insert_interactive
-// Interactive insert
-// Parameters: none
-// Returns: none
-// ============================================================================
+// bst_insert_interactive() - prompt for a value, insert it, redraw the tree
     .global bst_insert_interactive
 bst_insert_interactive:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     str     x19, [sp, 16]
 
     bl      ansi_clear_screen
 
     // Prompt for value
-    adrp    x0, prompt_value
-    add     x0, x0, :lo12:prompt_value
+    ldr     x0, =prompt_value
     bl      printf
 
     bl      read_int
     mov     w19, w0                          // Save value
 
     // Insert into tree
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     mov     w1, w19
     bl      bst_insert
 
@@ -861,48 +758,39 @@ bst_insert_interactive:
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_inserted
-    add     x0, x0, :lo12:msg_inserted
+    ldr     x0, =msg_inserted
     mov     w1, w19
     bl      printf
     bl      print_newline
 
     ldr     x19, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// FUNCTION: bst_delete_interactive
-// Interactive delete
-// Parameters: none
-// Returns: none
-// ============================================================================
+// bst_delete_interactive() - prompt for a value, delete it if present
     .global bst_delete_interactive
 bst_delete_interactive:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     str     x19, [sp, 16]
 
     bl      ansi_clear_screen
 
     // Check if tree is empty
-    adrp    x0, bst_node_count
-    add     x0, x0, :lo12:bst_node_count
+    ldr     x0, =bst_node_count
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    bst_delete_int_empty
 
     // Prompt for value
-    adrp    x0, prompt_value
-    add     x0, x0, :lo12:prompt_value
+    ldr     x0, =prompt_value
     bl      printf
 
     bl      read_int
     mov     w19, w0
 
     // First, search if the node exists
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     ldr     x0, [x0]
     mov     w1, w19
     bl      bst_search
@@ -911,8 +799,7 @@ bst_delete_interactive:
     b.eq    bst_delete_node_not_found    // Node doesn't exist
 
     // Node exists, delete it
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     mov     w1, w19
     bl      bst_delete
 
@@ -920,8 +807,7 @@ bst_delete_interactive:
     bl      bst_display_tree_visual
 
     // Decrement node count
-    adrp    x0, bst_node_count
-    add     x0, x0, :lo12:bst_node_count
+    ldr     x0, =bst_node_count
     ldr     w1, [x0]
     sub     w1, w1, 1
     str     w1, [x0]
@@ -931,8 +817,7 @@ bst_delete_interactive:
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_deleted
-    add     x0, x0, :lo12:msg_deleted
+    ldr     x0, =msg_deleted
     mov     w1, w19
     bl      printf
     bl      print_newline
@@ -948,8 +833,7 @@ bst_delete_node_not_found:
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_not_found
-    add     x0, x0, :lo12:msg_not_found
+    ldr     x0, =msg_not_found
     mov     w1, w19
     bl      printf
     bl      print_newline
@@ -961,40 +845,32 @@ bst_delete_int_empty:
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_empty_tree
-    add     x0, x0, :lo12:msg_empty_tree
+    ldr     x0, =msg_empty_tree
     bl      printf
     bl      print_newline
 
 bst_delete_int_done:
     ldr     x19, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// FUNCTION: bst_search_interactive
-// Interactive search
-// Parameters: none
-// Returns: none
-// ============================================================================
+// bst_search_interactive() - prompt for a value, run the animated search
     .global bst_search_interactive
 bst_search_interactive:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     str     x19, [sp, 16]
 
     bl      ansi_clear_screen
 
     // Check if tree is empty
-    adrp    x0, bst_node_count
-    add     x0, x0, :lo12:bst_node_count
+    ldr     x0, =bst_node_count
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    bst_search_int_empty
 
     // Prompt for value
-    adrp    x0, prompt_value
-    add     x0, x0, :lo12:prompt_value
+    ldr     x0, =prompt_value
     bl      printf
 
     bl      read_int
@@ -1007,14 +883,12 @@ bst_search_interactive:
     mov     w0, 2
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, bst_title
-    add     x0, x0, :lo12:bst_title
+    ldr     x0, =bst_title
     mov     w1, 80
     bl      print_centered
 
     // Search for value with animation
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     ldr     x0, [x0]
     mov     w1, w19
     bl      bst_search_animated
@@ -1027,8 +901,7 @@ bst_search_interactive:
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_found
-    add     x0, x0, :lo12:msg_found
+    ldr     x0, =msg_found
     mov     w1, w19
     bl      printf
     bl      print_newline
@@ -1040,8 +913,7 @@ bst_search_int_empty:
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_empty_tree
-    add     x0, x0, :lo12:msg_empty_tree
+    ldr     x0, =msg_empty_tree
     bl      printf
     bl      print_newline
     b       bst_search_int_done
@@ -1051,30 +923,25 @@ bst_search_int_not_found:
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_not_found
-    add     x0, x0, :lo12:msg_not_found
+    ldr     x0, =msg_not_found
     mov     w1, w19
     bl      printf
     bl      print_newline
 
 bst_search_int_done:
     ldr     x19, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// FUNCTION: bst_inorder_interactive
-// Interactive inorder traversal display
-// ============================================================================
+// bst_inorder_interactive() - animated inorder traversal
 bst_inorder_interactive:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
     bl      ansi_clear_screen
 
     // Check if empty
-    adrp    x0, bst_node_count
-    add     x0, x0, :lo12:bst_node_count
+    ldr     x0, =bst_node_count
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    bst_inorder_empty
@@ -1083,14 +950,12 @@ bst_inorder_interactive:
     mov     w0, 2
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, bst_title
-    add     x0, x0, :lo12:bst_title
+    ldr     x0, =bst_title
     mov     w1, 80
     bl      print_centered
 
     // Do animated inorder traversal
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     ldr     x0, [x0]
     bl      bst_inorder_animated
 
@@ -1100,28 +965,23 @@ bst_inorder_empty:
     mov     w0, 10
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_empty_tree
-    add     x0, x0, :lo12:msg_empty_tree
+    ldr     x0, =msg_empty_tree
     bl      printf
     bl      print_newline
 
 bst_inorder_done:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: bst_preorder_interactive
-// Interactive preorder traversal display
-// ============================================================================
+// bst_preorder_interactive() - animated preorder traversal
 bst_preorder_interactive:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
     bl      ansi_clear_screen
 
     // Check if empty
-    adrp    x0, bst_node_count
-    add     x0, x0, :lo12:bst_node_count
+    ldr     x0, =bst_node_count
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    bst_preorder_empty
@@ -1130,14 +990,12 @@ bst_preorder_interactive:
     mov     w0, 2
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, bst_title
-    add     x0, x0, :lo12:bst_title
+    ldr     x0, =bst_title
     mov     w1, 80
     bl      print_centered
 
     // Do animated preorder traversal
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     ldr     x0, [x0]
     bl      bst_preorder_animated
 
@@ -1147,28 +1005,23 @@ bst_preorder_empty:
     mov     w0, 10
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_empty_tree
-    add     x0, x0, :lo12:msg_empty_tree
+    ldr     x0, =msg_empty_tree
     bl      printf
     bl      print_newline
 
 bst_preorder_done:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: bst_postorder_interactive
-// Interactive postorder traversal display
-// ============================================================================
+// bst_postorder_interactive() - animated postorder traversal
 bst_postorder_interactive:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
     bl      ansi_clear_screen
 
     // Check if empty
-    adrp    x0, bst_node_count
-    add     x0, x0, :lo12:bst_node_count
+    ldr     x0, =bst_node_count
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    bst_postorder_empty
@@ -1177,14 +1030,12 @@ bst_postorder_interactive:
     mov     w0, 2
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, bst_title
-    add     x0, x0, :lo12:bst_title
+    ldr     x0, =bst_title
     mov     w1, 80
     bl      print_centered
 
     // Do animated postorder traversal
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     ldr     x0, [x0]
     bl      bst_postorder_animated
 
@@ -1194,28 +1045,23 @@ bst_postorder_empty:
     mov     w0, 10
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_empty_tree
-    add     x0, x0, :lo12:msg_empty_tree
+    ldr     x0, =msg_empty_tree
     bl      printf
     bl      print_newline
 
 bst_postorder_done:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: bst_levelorder_interactive
-// Interactive levelorder traversal display
-// ============================================================================
+// bst_levelorder_interactive() - animated levelorder traversal
 bst_levelorder_interactive:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
     bl      ansi_clear_screen
 
     // Check if empty
-    adrp    x0, bst_node_count
-    add     x0, x0, :lo12:bst_node_count
+    ldr     x0, =bst_node_count
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    bst_levelorder_empty
@@ -1224,14 +1070,12 @@ bst_levelorder_interactive:
     mov     w0, 2
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, bst_title
-    add     x0, x0, :lo12:bst_title
+    ldr     x0, =bst_title
     mov     w1, 80
     bl      print_centered
 
     // Do animated levelorder traversal
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     ldr     x0, [x0]
     bl      bst_levelorder_animated
 
@@ -1241,36 +1085,29 @@ bst_levelorder_empty:
     mov     w0, 10
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_empty_tree
-    add     x0, x0, :lo12:msg_empty_tree
+    ldr     x0, =msg_empty_tree
     bl      printf
     bl      print_newline
 
 bst_levelorder_done:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: bst_init_sample
-// Initializes BST with sample values
-// ============================================================================
+// bst_init_sample() - rebuild the tree from the sample values
 bst_init_sample:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     str     x19, [sp, 16]
 
     // Free existing tree
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     bl      bst_free_all
 
     // Insert sample values: 50, 30, 70, 20, 40, 60, 80
-    adrp    x19, bst_root
-    add     x19, x19, :lo12:bst_root
+    ldr     x19, =bst_root
 
     // Get animation delay
-    adrp    x20, tree_visual_delay
-    add     x20, x20, :lo12:tree_visual_delay
+    ldr     x20, =tree_visual_delay
     ldr     w20, [x20]
 
     // Insert and display each node
@@ -1327,23 +1164,18 @@ bst_init_sample:
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, .Lsample_complete
-    add     x0, x0, :lo12:.Lsample_complete
+    ldr     x0, =.Lsample_complete
     bl      printf
     bl      print_newline
 
     ldr     x19, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// FUNCTION: bst_show_sample_insert
-// Show tree after inserting a value (for sample initialization)
-// Input: w0 = delay, w1 = inserted value
-// ============================================================================
+// bst_show_sample_insert(w0 = delay ms, w1 = value) - redraw after one sample insert
 bst_show_sample_insert:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
 
     mov     w19, w0                      // Save delay
@@ -1354,21 +1186,18 @@ bst_show_sample_insert:
     mov     w0, 2
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, bst_title
-    add     x0, x0, :lo12:bst_title
+    ldr     x0, =bst_title
     mov     w1, 80
     bl      print_centered
 
     mov     w0, 3
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, .Lbuilding_tree_msg
-    add     x0, x0, :lo12:.Lbuilding_tree_msg
+    ldr     x0, =.Lbuilding_tree_msg
     bl      printf
 
     // Draw tree
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     ldr     x0, [x0]
     mov     w1, 6
     mov     w2, 40
@@ -1380,8 +1209,7 @@ bst_show_sample_insert:
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, .Linserted_val_msg
-    add     x0, x0, :lo12:.Linserted_val_msg
+    ldr     x0, =.Linserted_val_msg
     mov     w1, w20
     bl      printf
 
@@ -1392,16 +1220,13 @@ bst_show_sample_insert:
     bl      delay_ms
 
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// FUNCTION: bst_display_simple
-// Simple text display of tree (inorder traversal)
-// ============================================================================
+// bst_display_simple() - boxed inorder listing with node count
 bst_display_simple:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
     // Draw box
     mov     w0, 3
@@ -1415,8 +1240,7 @@ bst_display_simple:
     mov     w0, 4
     mov     w1, 7
     bl      ansi_move_cursor
-    adrp    x0, bst_title
-    add     x0, x0, :lo12:bst_title
+    ldr     x0, =bst_title
     mov     w1, 66
     bl      print_centered
 
@@ -1428,8 +1252,7 @@ bst_display_simple:
     bl      draw_horizontal_border_top
 
     // Check if empty
-    adrp    x0, bst_node_count
-    add     x0, x0, :lo12:bst_node_count
+    ldr     x0, =bst_node_count
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    bst_display_empty
@@ -1438,12 +1261,10 @@ bst_display_simple:
     mov     w0, 8
     mov     w1, 10
     bl      ansi_move_cursor
-    adrp    x0, .Linorder_label
-    add     x0, x0, :lo12:.Linorder_label
+    ldr     x0, =.Linorder_label
     bl      printf
 
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     ldr     x0, [x0]
     bl      bst_inorder
     bl      print_newline
@@ -1453,12 +1274,10 @@ bst_display_simple:
     mov     w1, 10
     bl      ansi_move_cursor
 
-    adrp    x1, bst_node_count
-    add     x1, x1, :lo12:bst_node_count
+    ldr     x1, =bst_node_count
     ldr     w1, [x1]
 
-    adrp    x0, label_nodes
-    add     x0, x0, :lo12:label_nodes
+    ldr     x0, =label_nodes
     bl      printf
 
     b       bst_display_done
@@ -1467,27 +1286,21 @@ bst_display_empty:
     mov     w0, 10
     mov     w1, 10
     bl      ansi_move_cursor
-    adrp    x0, msg_empty_tree
-    add     x0, x0, :lo12:msg_empty_tree
+    ldr     x0, =msg_empty_tree
     bl      printf
     bl      print_newline
 
 bst_display_done:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: bst_calculate_height
-// Calculate the height of a tree or subtree
-// Input:  x0 = root pointer
-// Output: w0 = height (0 for empty tree, 1 for single node)
-// ============================================================================
+// bst_calculate_height(x0 = root) -> w0 = height (0 when empty)
     .global bst_calculate_height
 bst_calculate_height:
     cbz     x0, calc_height_empty        // Empty tree has height 0
 
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
 
     mov     x19, x0                      // Save current node
@@ -1507,27 +1320,23 @@ bst_calculate_height:
     add     w0, w0, 1                     // height = 1 + max
 
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
 calc_height_empty:
     mov     w0, 0                         // Empty tree height = 0
     ret
 
-// ============================================================================
-// FUNCTION: bst_display_tree_visual
-// Display the tree in ASCII art format
-// ============================================================================
+// bst_display_tree_visual() - clear the screen and draw the whole tree
     .global bst_display_tree_visual
 bst_display_tree_visual:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
     bl      ansi_clear_screen
 
     // Check if tree is empty
-    adrp    x0, bst_node_count
-    add     x0, x0, :lo12:bst_node_count
+    ldr     x0, =bst_node_count
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    display_tree_visual_empty
@@ -1536,14 +1345,12 @@ bst_display_tree_visual:
     mov     w0, 2
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, bst_title
-    add     x0, x0, :lo12:bst_title
+    ldr     x0, =bst_title
     mov     w1, 80
     bl      print_centered
 
     // Draw tree starting at row 4
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     ldr     x0, [x0]
     mov     w1, 5                         // Starting row
     mov     w2, 40                        // Center column
@@ -1557,30 +1364,22 @@ display_tree_visual_empty:
     mov     w0, 10
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_empty_tree
-    add     x0, x0, :lo12:msg_empty_tree
+    ldr     x0, =msg_empty_tree
     bl      printf
     bl      print_newline
 
 display_tree_visual_done:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: bst_draw_node_recursive
-// Recursively draw tree nodes with connections
-// Input:  x0 = current node pointer
-//         w1 = row position
-//         w2 = column position
-//         w3 = horizontal spacing (distance to children)
-//         x4 = highlight node pointer (0 = no highlight)
-// ============================================================================
+// bst_draw_node_recursive(x0 = node, w1 = row, w2 = col,
+//                         w3 = child spacing, x4 = node to highlight or 0)
     .global bst_draw_node_recursive
 bst_draw_node_recursive:
     cbz     x0, draw_node_rec_done       // Base case: null node
 
-    stp     x29, x30, [sp, -80]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -80]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
@@ -1613,8 +1412,7 @@ draw_node_spacing_ok:
     add     w0, w20, 1                   // Line row = current + 1
     sub     w1, w21, 1                   // Line column = current - 1
     bl      ansi_move_cursor
-    adrp    x0, tree_branch_left
-    add     x0, x0, :lo12:tree_branch_left
+    ldr     x0, =tree_branch_left
     bl      printf
 
 draw_node_skip_left:
@@ -1633,8 +1431,7 @@ draw_node_skip_left:
     add     w0, w20, 1                   // Line row = current + 1
     add     w1, w21, 1                   // Line column = current + 1
     bl      ansi_move_cursor
-    adrp    x0, tree_branch_right
-    add     x0, x0, :lo12:tree_branch_right
+    ldr     x0, =tree_branch_right
     bl      printf
 
 draw_node_skip_right:
@@ -1649,22 +1446,19 @@ draw_node_skip_right:
     b.ne    draw_node_no_highlight
 
     // Apply highlight color
-    adrp    x0, highlight_current
-    add     x0, x0, :lo12:highlight_current
+    ldr     x0, =highlight_current
     bl      printf
 
 draw_node_no_highlight:
     // Print node value
-    adrp    x0, .Lnode_fmt
-    add     x0, x0, :lo12:.Lnode_fmt
+    ldr     x0, =.Lnode_fmt
     ldr     w1, [x19, NODE_DATA]
     bl      printf
 
     // Reset color if highlighted
     cmp     x19, x23
     b.ne    draw_node_no_reset
-    adrp    x0, color_reset
-    add     x0, x0, :lo12:color_reset
+    ldr     x0, =color_reset
     bl      printf
 
 draw_node_no_reset:
@@ -1673,29 +1467,23 @@ draw_node_no_reset:
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 80
+    ldp     fp, lr, [sp], 80
 
 draw_node_rec_done:
     ret
 
-// ============================================================================
-// FUNCTION: bst_search_animated
-// Search with animation - highlights path through tree
-// Input:  x0 = root pointer
-//         w1 = value to search
-// Output: x0 = pointer to node (or 0 if not found)
-// ============================================================================
+// bst_search_animated(x0 = root, w1 = target) -> x0 = node, or 0 if not found
+// redraws the tree at each step with the current node highlighted
     .global bst_search_animated
 bst_search_animated:
-    stp     x29, x30, [sp, -48]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -48]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
 
     mov     x19, x0                      // x19 = current node
     mov     w20, w1                      // w20 = target value
-    adrp    x21, tree_visual_delay
-    add     x21, x21, :lo12:tree_visual_delay
+    ldr     x21, =tree_visual_delay
     ldr     w21, [x21]                   // w21 = delay
 
     cbz     x19, search_anim_not_found   // Empty tree
@@ -1706,8 +1494,7 @@ search_anim_loop:
     mov     w0, 2
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, bst_title
-    add     x0, x0, :lo12:bst_title
+    ldr     x0, =bst_title
     mov     w1, 80
     bl      print_centered
 
@@ -1715,15 +1502,13 @@ search_anim_loop:
     mov     w0, 3
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, .Lsearching_msg
-    add     x0, x0, :lo12:.Lsearching_msg
+    ldr     x0, =.Lsearching_msg
     ldr     w1, [x19, NODE_DATA]
     bl      printf
 
     // Draw tree with current node highlighted
     mov     x4, x19                      // Highlight current node
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     ldr     x0, [x0]
     mov     w1, 6                        // Starting row
     mov     w2, 40                       // Center column
@@ -1731,7 +1516,7 @@ search_anim_loop:
     bl      bst_draw_node_recursive
 
     // Flush output to ensure frame is displayed
-    mov     x0, 0                        // stdout is NULL for fflush
+    mov     x0, 0                        // fflush(0) flushes every stream
     bl      fflush
 
     // Add delay for animation
@@ -1765,28 +1550,23 @@ search_anim_found:
 search_anim_done:
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 48
+    ldp     fp, lr, [sp], 48
     ret
 
-// ============================================================================
-// FUNCTION: bst_inorder_animated
-// Inorder traversal with animation
-// Input:  x0 = root pointer
-// ============================================================================
+// bst_inorder_animated(x0 = root) - one redraw per visited node
     .global bst_inorder_animated
 bst_inorder_animated:
     cbz     x0, inorder_anim_done
 
-    stp     x29, x30, [sp, -48]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -48]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     str     x21, [sp, 32]
 
     mov     x19, x0                      // Save current node
 
     // Get delay
-    adrp    x20, tree_visual_delay
-    add     x20, x20, :lo12:tree_visual_delay
+    ldr     x20, =tree_visual_delay
     ldr     w20, [x20]
 
     // Traverse left
@@ -1800,8 +1580,7 @@ bst_inorder_animated:
     mov     w0, 2
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, bst_title
-    add     x0, x0, :lo12:bst_title
+    ldr     x0, =bst_title
     mov     w1, 80
     bl      print_centered
 
@@ -1809,13 +1588,11 @@ bst_inorder_animated:
     mov     w0, 3
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, .Linorder_trav_msg
-    add     x0, x0, :lo12:.Linorder_trav_msg
+    ldr     x0, =.Linorder_trav_msg
     bl      printf
 
     // Draw tree
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     ldr     x0, [x0]
     mov     w1, 6
     mov     w2, 40
@@ -1827,8 +1604,7 @@ bst_inorder_animated:
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, .Lvisiting_msg
-    add     x0, x0, :lo12:.Lvisiting_msg
+    ldr     x0, =.Lvisiting_msg
     ldr     w1, [x19, NODE_DATA]
     bl      printf
 
@@ -1846,30 +1622,25 @@ bst_inorder_animated:
 
     ldr     x21, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 48
+    ldp     fp, lr, [sp], 48
 
 inorder_anim_done:
     ret
 
-// ============================================================================
-// FUNCTION: bst_preorder_animated
-// Preorder traversal with animation
-// Input:  x0 = root pointer
-// ============================================================================
+// bst_preorder_animated(x0 = root) - one redraw per visited node
     .global bst_preorder_animated
 bst_preorder_animated:
     cbz     x0, preorder_anim_done
 
-    stp     x29, x30, [sp, -48]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -48]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     str     x21, [sp, 32]
 
     mov     x19, x0                      // Save current node
 
     // Get delay
-    adrp    x20, tree_visual_delay
-    add     x20, x20, :lo12:tree_visual_delay
+    ldr     x20, =tree_visual_delay
     ldr     w20, [x20]
 
     // Clear screen and display tree with current node highlighted
@@ -1879,8 +1650,7 @@ bst_preorder_animated:
     mov     w0, 2
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, bst_title
-    add     x0, x0, :lo12:bst_title
+    ldr     x0, =bst_title
     mov     w1, 80
     bl      print_centered
 
@@ -1888,13 +1658,11 @@ bst_preorder_animated:
     mov     w0, 3
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, .Lpreorder_trav_msg
-    add     x0, x0, :lo12:.Lpreorder_trav_msg
+    ldr     x0, =.Lpreorder_trav_msg
     bl      printf
 
     // Draw tree
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     ldr     x0, [x0]
     mov     w1, 6
     mov     w2, 40
@@ -1906,8 +1674,7 @@ bst_preorder_animated:
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, .Lvisiting_msg
-    add     x0, x0, :lo12:.Lvisiting_msg
+    ldr     x0, =.Lvisiting_msg
     ldr     w1, [x19, NODE_DATA]
     bl      printf
 
@@ -1929,30 +1696,25 @@ bst_preorder_animated:
 
     ldr     x21, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 48
+    ldp     fp, lr, [sp], 48
 
 preorder_anim_done:
     ret
 
-// ============================================================================
-// FUNCTION: bst_postorder_animated
-// Postorder traversal with animation
-// Input:  x0 = root pointer
-// ============================================================================
+// bst_postorder_animated(x0 = root) - one redraw per visited node
     .global bst_postorder_animated
 bst_postorder_animated:
     cbz     x0, postorder_anim_done
 
-    stp     x29, x30, [sp, -48]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -48]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     str     x21, [sp, 32]
 
     mov     x19, x0                      // Save current node
 
     // Get delay
-    adrp    x20, tree_visual_delay
-    add     x20, x20, :lo12:tree_visual_delay
+    ldr     x20, =tree_visual_delay
     ldr     w20, [x20]
 
     // Traverse left
@@ -1970,8 +1732,7 @@ bst_postorder_animated:
     mov     w0, 2
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, bst_title
-    add     x0, x0, :lo12:bst_title
+    ldr     x0, =bst_title
     mov     w1, 80
     bl      print_centered
 
@@ -1979,13 +1740,11 @@ bst_postorder_animated:
     mov     w0, 3
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, .Lpostorder_trav_msg
-    add     x0, x0, :lo12:.Lpostorder_trav_msg
+    ldr     x0, =.Lpostorder_trav_msg
     bl      printf
 
     // Draw tree
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     ldr     x0, [x0]
     mov     w1, 6
     mov     w2, 40
@@ -1997,8 +1756,7 @@ bst_postorder_animated:
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, .Lvisiting_msg
-    add     x0, x0, :lo12:.Lvisiting_msg
+    ldr     x0, =.Lvisiting_msg
     ldr     w1, [x19, NODE_DATA]
     bl      printf
 
@@ -2012,27 +1770,23 @@ bst_postorder_animated:
 
     ldr     x21, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 48
+    ldp     fp, lr, [sp], 48
 
 postorder_anim_done:
     ret
 
-// ============================================================================
-// FUNCTION: bst_levelorder_animated
-// Level-order traversal with animation
-// Input:  x0 = root pointer
-// ============================================================================
+// bst_levelorder_animated(x0 = root) - breadth-first, queue on the stack
     .global bst_levelorder_animated
 bst_levelorder_animated:
     cbz     x0, levelorder_anim_done         // Empty tree
 
     // Allocate stack: 64 bytes locals + 512 bytes queue
     sub     sp, sp, #576
-    stp     x29, x30, [sp, 0]                // Save fp/lr at sp + 0
-    mov     x29, sp                          // Set frame pointer
-    stp     x19, x20, [sp, 16]               // Save callee-saved at sp + 16
-    stp     x21, x22, [sp, 32]               // Save at sp + 32
-    stp     x23, x24, [sp, 48]               // Save at sp + 48 (now saving x24 too)
+    stp     fp, lr, [sp, 0]
+    mov     fp, sp
+    stp     x19, x20, [sp, 16]
+    stp     x21, x22, [sp, 32]
+    stp     x23, x24, [sp, 48]
 
     mov     x19, x0                          // x19 = current node (will be updated in loop)
     add     x20, sp, #64                     // x20 = queue base (sp + 64)
@@ -2041,8 +1795,7 @@ bst_levelorder_animated:
     mov     w23, 0                           // w23 = count
 
     // Get delay value
-    adrp    x0, tree_visual_delay
-    add     x0, x0, :lo12:tree_visual_delay
+    ldr     x0, =tree_visual_delay
     ldr     w23, [x0]                        // w23 = delay (temp use)
     str     w23, [sp, 56]                    // Save delay at sp + 56
     mov     w23, 0                           // Reset w23 to count
@@ -2062,8 +1815,7 @@ levelorder_anim_loop:
     and     w21, w21, 0x3F                   // front %= 64 (circular, for 64-element queue)
     sub     w23, w23, 1                      // count--
 
-    // === SAVE ALL STATE TO CALLEE-SAVED REGISTERS ===
-    // (to survive potential corruption during function calls)
+    // stash queue state in registers the draw calls preserve
     mov     x24, x19                         // x24 = backup current node
     mov     w25, w21                         // w25 = backup front index
     mov     w26, w22                         // w26 = backup rear index
@@ -2076,8 +1828,7 @@ levelorder_anim_loop:
     mov     w0, 2
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, bst_title
-    add     x0, x0, :lo12:bst_title
+    ldr     x0, =bst_title
     mov     w1, 80
     bl      print_centered
 
@@ -2085,13 +1836,11 @@ levelorder_anim_loop:
     mov     w0, 3
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, .Llevelorder_trav_msg
-    add     x0, x0, :lo12:.Llevelorder_trav_msg
+    ldr     x0, =.Llevelorder_trav_msg
     bl      printf
 
     // Draw tree
-    adrp    x0, bst_root
-    add     x0, x0, :lo12:bst_root
+    ldr     x0, =bst_root
     ldr     x0, [x0]
     mov     w1, 6
     mov     w2, 40
@@ -2103,8 +1852,7 @@ levelorder_anim_loop:
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, .Lvisiting_msg
-    add     x0, x0, :lo12:.Lvisiting_msg
+    ldr     x0, =.Lvisiting_msg
     ldr     w1, [x24, NODE_DATA]             // Get node data from backup pointer
     bl      printf
 
@@ -2115,7 +1863,7 @@ levelorder_anim_loop:
     ldr     w0, [sp, 56]                     // Load delay from stack
     bl      delay_ms
 
-    // === RESTORE ALL STATE FROM BACKUP REGISTERS ===
+    // recover queue state after the calls
     mov     x19, x24                         // Restore current node
     mov     w21, w25                         // Restore front
     mov     w22, w26                         // Restore rear
@@ -2145,16 +1893,14 @@ levelorder_anim_complete:
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp, 0]
-    add     sp, sp, #576                     // Deallocate stack
+    ldp     fp, lr, [sp, 0]
+    add     sp, sp, #576
 
 levelorder_anim_done:
     ret
 
-// ============================================================================
-// Format strings and helper messages
-// ============================================================================
-    .data
+// format strings and messages
+.data
 fmt_int:            .string "%d "
 fmt_newline:        .string "\n"
 .Lsample_msg:       .string " Initialized with sample tree."
