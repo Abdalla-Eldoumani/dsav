@@ -215,9 +215,10 @@ display_sort_menu:
 // sort_initialize_array() - read a size, fill sort_array with random values
     .global sort_initialize_array
 sort_initialize_array:
-    stp     fp, lr, [sp, -32]!
+    stp     fp, lr, [sp, -48]!
     mov     fp, sp
     stp     x19, x20, [sp, 16]
+    str     x21, [sp, 32]
 
     bl      ansi_clear_screen
 
@@ -261,8 +262,9 @@ sort_init_done:
     bl      printf
     bl      print_newline
 
+    ldr     x21, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     fp, lr, [sp], 32
+    ldp     fp, lr, [sp], 48
     ret
 
 // sort_display_array() - draw the array, coloring the highlight cells, the

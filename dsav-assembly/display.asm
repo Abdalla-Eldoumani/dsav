@@ -40,11 +40,12 @@ char_space:         .string " "
 // style: 0 = single line, 1 = double line
     .global draw_box
 draw_box:
-    stp     fp, lr, [sp, -64]!
+    stp     fp, lr, [sp, -80]!
     mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
+    str     x25, [sp, 64]
 
     mov     w19, w0                         // row
     mov     w20, w1                         // col
@@ -112,19 +113,21 @@ draw_box_middle_done:
     mov     w3, w23
     bl      draw_horizontal_border_bottom
 
+    ldr     x25, [sp, 64]
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     fp, lr, [sp], 64
+    ldp     fp, lr, [sp], 80
     ret
 
 // draw_horizontal_border_top(w0 = row, w1 = col, w2 = width, w3 = style)
     .global draw_horizontal_border_top
 draw_horizontal_border_top:
-    stp     fp, lr, [sp, -48]!
+    stp     fp, lr, [sp, -64]!
     mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
+    str     x23, [sp, 48]
 
     mov     w19, w0                         // row
     mov     w20, w1                         // col
@@ -172,18 +175,20 @@ draw_htop_single_tr:
 draw_htop_print_tr:
     bl      printf
 
+    ldr     x23, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     fp, lr, [sp], 48
+    ldp     fp, lr, [sp], 64
     ret
 
 // draw_horizontal_border_bottom(w0 = row, w1 = col, w2 = width, w3 = style)
     .global draw_horizontal_border_bottom
 draw_horizontal_border_bottom:
-    stp     fp, lr, [sp, -48]!
+    stp     fp, lr, [sp, -64]!
     mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
+    str     x23, [sp, 48]
 
     mov     w19, w0                         // row
     mov     w20, w1                         // col
@@ -231,18 +236,20 @@ draw_hbot_single_br:
 draw_hbot_print_br:
     bl      printf
 
+    ldr     x23, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     fp, lr, [sp], 48
+    ldp     fp, lr, [sp], 64
     ret
 
 // print_centered(x0 = string, w1 = field width)
     .global print_centered
 print_centered:
-    stp     fp, lr, [sp, -48]!
+    stp     fp, lr, [sp, -64]!
     mov     fp, sp
     stp     x19, x20, [sp, 16]
-    str     x21, [sp, 32]
+    stp     x21, x22, [sp, 32]
+    str     x23, [sp, 48]
 
     mov     x19, x0                         // string
     mov     w20, w1                         // field width
@@ -267,9 +274,10 @@ print_centered_pad_done:
     mov     x0, x19
     bl      printf
 
-    ldr     x21, [sp, 32]
+    ldr     x23, [sp, 48]
+    ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     fp, lr, [sp], 48
+    ldp     fp, lr, [sp], 64
     ret
 
 // print_title(x0 = title string, w1 = row)

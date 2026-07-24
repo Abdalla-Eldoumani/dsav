@@ -72,9 +72,10 @@ read_int_done:
 // reprompts until a valid number in [min, max] is entered
     .global read_int_range
 read_int_range:
-    stp     fp, lr, [sp, -32]!
+    stp     fp, lr, [sp, -48]!
     mov     fp, sp
     stp     x19, x20, [sp, 16]
+    stp     x21, x22, [sp, 32]
 
     mov     w19, w0                         // min
     mov     w20, w1                         // max
@@ -103,8 +104,9 @@ read_int_range_invalid:
     b       read_int_range_loop
 
 read_int_range_done:
+    ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     fp, lr, [sp], 32
+    ldp     fp, lr, [sp], 48
     ret
 
 // wait_for_enter() - prompt on the bottom row, block until enter

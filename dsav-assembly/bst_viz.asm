@@ -1097,7 +1097,7 @@ bst_levelorder_done:
 bst_init_sample:
     stp     fp, lr, [sp, -32]!
     mov     fp, sp
-    str     x19, [sp, 16]
+    stp     x19, x20, [sp, 16]
 
     // Free existing tree
     ldr     x0, =bst_root
@@ -1168,7 +1168,7 @@ bst_init_sample:
     bl      printf
     bl      print_newline
 
-    ldr     x19, [sp, 16]
+    ldp     x19, x20, [sp, 16]
     ldp     fp, lr, [sp], 32
     ret
 
@@ -1780,16 +1780,19 @@ postorder_anim_done:
 bst_levelorder_animated:
     cbz     x0, levelorder_anim_done         // Empty tree
 
-    // Allocate stack: 64 bytes locals + 512 bytes queue
-    sub     sp, sp, #576
+    // Frame: register saves at 0-87, delay slot at 88, 512-byte queue
+    // at 96-607
+    sub     sp, sp, #608
     stp     fp, lr, [sp, 0]
     mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
+    stp     x25, x26, [sp, 64]
+    str     x27, [sp, 80]
 
     mov     x19, x0                          // x19 = current node (will be updated in loop)
-    add     x20, sp, #64                     // x20 = queue base (sp + 64)
+    add     x20, sp, #96                     // x20 = queue base
     mov     w21, 0                           // w21 = front index
     mov     w22, 0                           // w22 = rear index
     mov     w23, 0                           // w23 = count
@@ -1797,7 +1800,7 @@ bst_levelorder_animated:
     // Get delay value
     ldr     x0, =tree_visual_delay
     ldr     w23, [x0]                        // w23 = delay (temp use)
-    str     w23, [sp, 56]                    // Save delay at sp + 56
+    str     w23, [sp, 88]                    // delay slot below the queue
     mov     w23, 0                           // Reset w23 to count
 
     // Enqueue root
@@ -1860,7 +1863,7 @@ levelorder_anim_loop:
     mov     x0, 0
     bl      fflush
 
-    ldr     w0, [sp, 56]                     // Load delay from stack
+    ldr     w0, [sp, 88]                     // Load delay from stack
     bl      delay_ms
 
     // recover queue state after the calls
@@ -1890,11 +1893,13 @@ levelorder_anim_skip_right:
     b       levelorder_anim_loop
 
 levelorder_anim_complete:
+    ldr     x27, [sp, 80]
+    ldp     x25, x26, [sp, 64]
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
     ldp     fp, lr, [sp, 0]
-    add     sp, sp, #576
+    add     sp, sp, #608
 
 levelorder_anim_done:
     ret
