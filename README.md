@@ -7,14 +7,14 @@ Educational tool that shows how data structures and algorithms work through visu
 This project has three versions:
 
 ### 1. Assembly Version (`dsav-assembly/`)
-Terminal-based visualizer written in ARMv8 assembly. Shows colored animations using ANSI escape codes.
+Terminal visualizer in AArch64 assembly, animated with ANSI escape codes.
 
-**Data Structures:** Array, Stack, Queue, Linked List, Binary Search Tree (with level-order traversal), Red-Black Tree (insert, delete, search with animated fixup)
-**Sorting:** Bubble, Selection, Insertion, Merge, Quick Sort (with detailed step-by-step animations)
-**Searching:** Linear, Binary Search (with smart sorted-array detection)
-**Features:** User-configurable animation speed (100-2500ms), animated search traversals, breadth-first tree traversal, table-style displays, colored RB tree nodes (red/black backgrounds)
+**Data Structures:** Array, Stack, Queue, Linked List, Binary Search Tree, Red-Black Tree (animated insert/delete fixups)
+**Sorting:** Bubble, Selection, Insertion, Merge, Quick Sort
+**Searching:** Linear, Binary Search (offers to sort an unsorted array first)
+**Features:** Adjustable animation speed (100-2500 ms), animated traversals and searches, colored red/black nodes
 
-**Runs on:** ARM64 Linux (native or WSL with ARM compiler)
+**Runs on:** ARM64 Linux, or any Linux with an AArch64 cross-compiler and qemu
 
 ### 2. C++ Version (`dsav-cpp/`)
 OpenGL-based graphical visualizer with two implementations:

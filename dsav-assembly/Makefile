@@ -14,7 +14,7 @@ TARGET = dsav
 all: $(TARGET)
 
 # Preprocess .asm files with m4 to expand macros
-%.s: %.asm macros.m4
+%.s: %.asm
 	$(M4) $< > $@
 
 # Assemble .s files to object files

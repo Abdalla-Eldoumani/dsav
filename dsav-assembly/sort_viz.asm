@@ -1,40 +1,29 @@
-// ============================================================================
-// sort_viz.asm - Sorting Algorithm Visualization Module
-// ============================================================================
-// Implements animated visualizations for:
-//   - Bubble Sort
-//   - Selection Sort
-//   - Insertion Sort
-//   - Merge Sort
-//   - Quick Sort
-// ============================================================================
+// sort_viz.asm - bubble, selection, insertion, merge, quick sort animations
+// repaints the array after every compare and swap, at a user-chosen speed
 
-include(`macros.m4')
+define(fp, x29)
+define(lr, x30)
 
-    .data
+.data
     .balign 8
 
-// ----------------------------------------------------------------------------
-// Sorting visualization state
-// ----------------------------------------------------------------------------
-sort_array:         .skip 40                // Temporary array for sorting (10 elements)
-sort_aux_array:     .skip 40                // Auxiliary array for merge sort
-sort_size:          .word 0                 // Current array size
-sort_delay:         .word 500               // Animation delay in ms
+sort_array:         .skip 40                // temporary array for sorting (10 elements)
+sort_aux_array:     .skip 40                // auxiliary array for merge sort
+sort_size:          .word 0                 // current array size
+sort_delay:         .word 500               // animation delay in ms
 
-// Highlight indices for visualization
-highlight_idx1:     .word -1                // First highlighted index
-highlight_idx2:     .word -1                // Second highlighted index
-sorted_up_to:       .word -1                // Elements up to this index are sorted
+// highlight indices for visualization
+highlight_idx1:     .word -1                // first highlighted index
+highlight_idx2:     .word -1                // second highlighted index
+sorted_up_to:       .word -1                // elements up to this index are sorted
+sorted_from:        .word -1                // elements from this index on are sorted
+                                            // (bubble grows its sorted run from the right)
 
-// For merge sort and quick sort
-merge_left:         .word -1                // Left bound of current merge/partition
-merge_right:        .word -1                // Right bound of current merge/partition
-merge_mid:          .word -1                // Middle point for merge
+// for merge sort and quick sort
+merge_left:         .word -1                // left bound of current merge/partition
+merge_right:        .word -1                // right bound of current merge/partition
+merge_mid:          .word -1                // middle point for merge
 
-// ----------------------------------------------------------------------------
-// UI Strings
-// ----------------------------------------------------------------------------
 sort_title:         .string "SORTING ALGORITHM VISUALIZATION"
 sort_menu_title:    .string "SORTING ALGORITHMS MENU"
 
@@ -61,31 +50,24 @@ msg_sorted_marker:  .string "✓ Sorted"
 label_comparisons:  .string "Comparisons: %d"
 label_swaps:        .string "Swaps: %d"
 
-    .text
+.text
     .balign 4
 
-// ============================================================================
-// FUNCTION: sort_menu
-// Main menu for sorting algorithms
-// Parameters: none
-// Returns: none
-// ============================================================================
+// sort_menu() - menu loop for the sorting module
     .global sort_menu
 sort_menu:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
 sort_menu_loop:
-    // Clear screen and display menu
     bl      ansi_clear_screen
     bl      display_sort_menu
 
-    // Get user choice
     mov     w0, 0                            // min
     mov     w1, 6                            // max
     bl      read_int_range
 
-    // Dispatch based on choice
+    // dispatch
     cmp     w0, 0
     b.eq    sort_menu_exit
 
@@ -140,21 +122,16 @@ sort_menu_initialize:
     b       sort_menu_loop
 
 sort_menu_exit:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: display_sort_menu
-// Displays the sorting algorithms menu
-// Parameters: none
-// Returns: none
-// ============================================================================
+// display_sort_menu() - draw the menu box and options
     .global display_sort_menu
 display_sort_menu:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
-    // Draw menu box
+    // menu box
     mov     w0, 3                            // row
     mov     w1, 15                           // column
     mov     w2, 50                           // width
@@ -162,122 +139,105 @@ display_sort_menu:
     mov     w4, 1                            // double-line style
     bl      draw_box
 
-    // Print title
+    // print title
     mov     w0, 4
     mov     w1, 17
     bl      ansi_move_cursor
-    adrp    x0, sort_menu_title
-    add     x0, x0, :lo12:sort_menu_title
+    ldr     x0, =sort_menu_title
     mov     w1, 46
     bl      print_centered
 
-    // Print separator
+    // print separator
     mov     w0, 5
     mov     w1, 15
     mov     w2, 50
     mov     w3, 1
     bl      draw_horizontal_border_top
 
-    // Print menu options
+    // print menu options
     mov     w0, 7
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_opt_1
-    add     x0, x0, :lo12:menu_opt_1
+    ldr     x0, =menu_opt_1
     bl      printf
 
     mov     w0, 8
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_opt_2
-    add     x0, x0, :lo12:menu_opt_2
+    ldr     x0, =menu_opt_2
     bl      printf
 
     mov     w0, 9
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_opt_3
-    add     x0, x0, :lo12:menu_opt_3
+    ldr     x0, =menu_opt_3
     bl      printf
 
     mov     w0, 10
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_opt_4
-    add     x0, x0, :lo12:menu_opt_4
+    ldr     x0, =menu_opt_4
     bl      printf
 
     mov     w0, 11
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_opt_5
-    add     x0, x0, :lo12:menu_opt_5
+    ldr     x0, =menu_opt_5
     bl      printf
 
     mov     w0, 12
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_opt_6
-    add     x0, x0, :lo12:menu_opt_6
+    ldr     x0, =menu_opt_6
     bl      printf
 
     mov     w0, 13
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_opt_0
-    add     x0, x0, :lo12:menu_opt_0
+    ldr     x0, =menu_opt_0
     bl      printf
 
-    // Print separator
+    // print separator
     mov     w0, 15
     mov     w1, 15
     mov     w2, 50
     mov     w3, 1
     bl      draw_horizontal_border_top
 
-    // Position cursor for input
+    // position cursor for input
     mov     w0, 16
     mov     w1, 20
     bl      ansi_move_cursor
-    adrp    x0, menu_prompt
-    add     x0, x0, :lo12:menu_prompt
+    ldr     x0, =menu_prompt
     bl      printf
 
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: sort_initialize_array
-// Initializes the sorting array with random values
-// Parameters: none
-// Returns: none
-// ============================================================================
+// sort_initialize_array() - read a size, fill sort_array with random values
     .global sort_initialize_array
 sort_initialize_array:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -48]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
+    str     x21, [sp, 32]
 
     bl      ansi_clear_screen
 
-    // Prompt for size
-    adrp    x0, prompt_size
-    add     x0, x0, :lo12:prompt_size
+    // prompt for size
+    ldr     x0, =prompt_size
     bl      printf
 
     mov     w0, 3
     mov     w1, 10
     bl      read_int_range
-    mov     w19, w0                          // Save size
+    mov     w19, w0                          // save size
 
-    // Store size
-    adrp    x20, sort_size
-    add     x20, x20, :lo12:sort_size
+    ldr     x20, =sort_size
     str     w19, [x20]
 
-    // Fill array with random values
-    adrp    x20, sort_array
-    add     x20, x20, :lo12:sort_array
+    // fill array with random values
+    ldr     x20, =sort_array
     mov     w21, 0
 
 sort_init_loop:
@@ -292,74 +252,63 @@ sort_init_loop:
     b       sort_init_loop
 
 sort_init_done:
-    // Display array
     bl      sort_display_array
 
-    // Position cursor for message
+    // position cursor for message
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_initialized
-    add     x0, x0, :lo12:msg_initialized
+    ldr     x0, =msg_initialized
     mov     w1, w19
     bl      printf
     bl      print_newline
 
+    ldr     x21, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 48
     ret
 
-// ============================================================================
-// FUNCTION: sort_display_array
-// Displays array with highlighting for visualization
-// Parameters: none
-// Returns: none
-// ============================================================================
+// sort_display_array() - draw the array, coloring the highlight cells, the
+// sorted prefix, and the active merge range
     .global sort_display_array
 sort_display_array:
-    stp     x29, x30, [sp, -80]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -96]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
     stp     x25, x26, [sp, 64]
+    str     x27, [sp, 80]
 
-    // Load size
-    adrp    x19, sort_size
-    add     x19, x19, :lo12:sort_size
+    ldr     x19, =sort_size
     ldr     w19, [x19]
 
-    // Load array
-    adrp    x20, sort_array
-    add     x20, x20, :lo12:sort_array
+    ldr     x20, =sort_array
 
-    // Load highlight indices
-    adrp    x21, highlight_idx1
-    add     x21, x21, :lo12:highlight_idx1
+    // highlight indices and the sorted prefix
+    ldr     x21, =highlight_idx1
     ldr     w21, [x21]
 
-    adrp    x22, highlight_idx2
-    add     x22, x22, :lo12:highlight_idx2
+    ldr     x22, =highlight_idx2
     ldr     w22, [x22]
 
-    adrp    x23, sorted_up_to
-    add     x23, x23, :lo12:sorted_up_to
+    ldr     x23, =sorted_up_to
     ldr     w23, [x23]
 
-    // Load merge range for merge/quick sort visualization
-    adrp    x25, merge_left
-    add     x25, x25, :lo12:merge_left
+    ldr     x27, =sorted_from
+    ldr     w27, [x27]
+
+    // active merge range for merge/quick visualization
+    ldr     x25, =merge_left
     ldr     w25, [x25]
 
-    adrp    x26, merge_right
-    add     x26, x26, :lo12:merge_right
+    ldr     x26, =merge_right
     ldr     w26, [x26]
 
-    // Clear screen
     bl      ansi_clear_screen
 
-    // Draw box
+    // draw box
     mov     w0, 3
     mov     w1, 2
     mov     w2, 80
@@ -367,33 +316,32 @@ sort_display_array:
     mov     w4, 0
     bl      draw_box
 
-    // Print title
+    // print title
     mov     w0, 4
     mov     w1, 4
     bl      ansi_move_cursor
-    adrp    x0, sort_title
-    add     x0, x0, :lo12:sort_title
+    ldr     x0, =sort_title
     mov     w1, 76
     bl      print_centered
 
-    // Print separator
+    // print separator
     mov     w0, 5
     mov     w1, 2
     mov     w2, 80
     mov     w3, 0
     bl      draw_horizontal_border_top
 
-    // Print array values
+    // print array values
     mov     w0, 8
     mov     w1, 15
     bl      ansi_move_cursor
 
-    mov     w24, 0                           // Index counter
+    mov     w24, 0                           // index counter
 sort_display_loop:
     cmp     w24, w19
     b.ge    sort_display_done
 
-    // Determine color for this element
+    // determine color for this element
     cmp     w24, w21
     b.eq    sort_display_highlight1
     cmp     w24, w22
@@ -401,7 +349,14 @@ sort_display_loop:
     cmp     w24, w23
     b.le    sort_display_sorted
 
-    // Check if in merge range (for merge/quick sort)
+    // sorted suffix marker (bubble sort)
+    cmp     w27, 0
+    b.lt    sort_display_check_merge
+    cmp     w24, w27
+    b.ge    sort_display_sorted
+
+sort_display_check_merge:
+    // check if in merge range (for merge/quick sort)
     cmp     w25, 0
     b.lt    sort_display_normal              // merge_left < 0, not in merge mode
     cmp     w24, w25
@@ -409,43 +364,38 @@ sort_display_loop:
     cmp     w24, w26
     b.gt    sort_display_normal              // element after merge range
 
-    // Element is in merge range - highlight with yellow
-    mov     w0, 43                           // Yellow background
+    // element is in merge range - highlight with yellow
+    mov     w0, 43                           // yellow background
     bl      ansi_set_color_bg
     b       sort_display_print
 
 sort_display_normal:
-    // Normal color (white)
+    // normal color (white)
     bl      ansi_reset_attributes
     b       sort_display_print
 
 sort_display_highlight1:
-    mov     w0, 43                           // Yellow background
+    mov     w0, 43                           // yellow background
     bl      ansi_set_color_bg
     b       sort_display_print
 
 sort_display_highlight2:
-    mov     w0, 46                           // Cyan background
+    mov     w0, 46                           // cyan background
     bl      ansi_set_color_bg
     b       sort_display_print
 
 sort_display_sorted:
-    mov     w0, 42                           // Green background
+    mov     w0, 42                           // green background
     bl      ansi_set_color_bg
 
 sort_display_print:
-    // Print value
     ldr     w1, [x20, w24, SXTW 2]
-    adrp    x0, .Lvalue_fmt
-    add     x0, x0, :lo12:.Lvalue_fmt
+    ldr     x0, =.Lvalue_fmt
     bl      printf
 
-    // Reset color
     bl      ansi_reset_attributes
 
-    // Print space
-    adrp    x0, .Lspace
-    add     x0, x0, :lo12:.Lspace
+    ldr     x0, =.Lspace
     bl      printf
 
     add     w24, w24, 1
@@ -454,60 +404,48 @@ sort_display_print:
 sort_display_done:
     bl      print_newline
 
+    ldr     x27, [sp, 80]
     ldp     x25, x26, [sp, 64]
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 80
+    ldp     fp, lr, [sp], 96
     ret
 
-    .section .rodata
+.section .rodata
 .Lvalue_fmt:    .string "[%3d]"
 .Lspace:        .string " "
-    .text
+.text
 
-// ============================================================================
-// FUNCTION: sort_bubble_interactive
-// Interactive bubble sort with visualization
-// Parameters: none
-// Returns: none
-// ============================================================================
+// sort_bubble_interactive() - speed prompt, then animated bubble sort
     .global sort_bubble_interactive
 sort_bubble_interactive:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
-    // Check if array is initialized
-    adrp    x0, sort_size
-    add     x0, x0, :lo12:sort_size
+    // check if array is initialized
+    ldr     x0, =sort_size
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    sort_bubble_empty
 
-    // Get speed from user
+    // get speed from user
     bl      sort_get_speed
 
-    // Reset highlights
     bl      sort_reset_highlights
 
-    // Show initial array
     bl      sort_display_array
 
-    // Wait for user
-    adrp    x0, prompt_continue
-    add     x0, x0, :lo12:prompt_continue
+    ldr     x0, =prompt_continue
     bl      printf
     bl      wait_for_enter
 
-    // Perform bubble sort
     bl      bubble_sort
 
-    // Show sorted message
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_sorted
-    add     x0, x0, :lo12:msg_sorted
+    ldr     x0, =msg_sorted
     bl      printf
     bl      print_newline
 
@@ -517,46 +455,36 @@ sort_bubble_empty:
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_empty
-    add     x0, x0, :lo12:msg_empty
+    ldr     x0, =msg_empty
     bl      printf
     bl      print_newline
 
 sort_bubble_done:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: bubble_sort
-// Bubble sort with visualization
-// Parameters: none (uses global sort_array and sort_size)
-// Returns: none
-// ============================================================================
+// bubble_sort() - sort sort_array in place, repainting every compare
     .global bubble_sort
 bubble_sort:
-    stp     x29, x30, [sp, -64]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -64]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
 
-    // Load size
-    adrp    x19, sort_size
-    add     x19, x19, :lo12:sort_size
+    ldr     x19, =sort_size
     ldr     w19, [x19]
 
-    // Load array
-    adrp    x20, sort_array
-    add     x20, x20, :lo12:sort_array
+    ldr     x20, =sort_array
 
-    // Outer loop: i = 0 to n-2
+    // outer loop: i = 0 to n-2
     mov     w21, 0
 bubble_outer:
     sub     w0, w19, 1
     cmp     w21, w0
     b.ge    bubble_done
 
-    // Inner loop: j = 0 to n-i-2
+    // inner loop: j = 0 to n-i-2
     mov     w22, 0
 bubble_inner:
     sub     w0, w19, w21
@@ -564,40 +492,36 @@ bubble_inner:
     cmp     w22, w0
     b.gt    bubble_inner_done
 
-    // Highlight elements being compared
-    adrp    x23, highlight_idx1
-    add     x23, x23, :lo12:highlight_idx1
+    // highlight elements being compared
+    ldr     x23, =highlight_idx1
     str     w22, [x23]
 
     add     w0, w22, 1
-    adrp    x23, highlight_idx2
-    add     x23, x23, :lo12:highlight_idx2
+    ldr     x23, =highlight_idx2
     str     w0, [x23]
 
-    // Display with highlights
     bl      sort_display_array
 
-    // Load values to compare
+    // load values to compare
     ldr     w23, [x20, w22, SXTW 2]          // arr[j]
     add     w0, w22, 1
     ldr     w24, [x20, w0, SXTW 2]           // arr[j+1]
 
-    // Delay for visualization
-    adrp    x1, sort_delay
-    add     x1, x1, :lo12:sort_delay
+    // delay for visualization
+    ldr     x1, =sort_delay
     ldr     w0, [x1]
     bl      delay_ms
 
-    // Compare and swap if needed
+    // compare and swap if needed
     cmp     w23, w24
     b.le    bubble_no_swap
 
-    // Swap arr[j] and arr[j+1]
+    // swap arr[j] and arr[j+1]
     str     w24, [x20, w22, SXTW 2]
     add     w0, w22, 1
     str     w23, [x20, w0, SXTW 2]
 
-    // Show swap with different delay
+    // show swap with different delay
     bl      sort_display_array
     mov     w0, 100
     bl      delay_ms
@@ -607,58 +531,50 @@ bubble_no_swap:
     b       bubble_inner
 
 bubble_inner_done:
-    // Mark last element as sorted
+    // the largest value just bubbled to slot n-i-1: grow the sorted
+    // suffix leftward
     sub     w0, w19, w21
     sub     w0, w0, 1
-    adrp    x23, sorted_up_to
-    add     x23, x23, :lo12:sorted_up_to
+    ldr     x23, =sorted_from
     str     w0, [x23]
 
     add     w21, w21, 1
     b       bubble_outer
 
 bubble_done:
-    // Mark all as sorted
-    sub     w0, w19, 1
-    adrp    x23, sorted_up_to
-    add     x23, x23, :lo12:sorted_up_to
-    str     w0, [x23]
-
     bl      sort_reset_highlights
+
+    // final frame: everything sorted
+    sub     w0, w19, 1
+    ldr     x23, =sorted_up_to
+    str     w0, [x23]
     bl      sort_display_array
 
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 64
+    ldp     fp, lr, [sp], 64
     ret
 
-// ============================================================================
-// FUNCTION: sort_selection_interactive
-// Interactive selection sort with visualization
-// Parameters: none
-// Returns: none
-// ============================================================================
+// sort_selection_interactive() - speed prompt, then animated selection sort
     .global sort_selection_interactive
 sort_selection_interactive:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
-    // Check if array is initialized
-    adrp    x0, sort_size
-    add     x0, x0, :lo12:sort_size
+    // check if array is initialized
+    ldr     x0, =sort_size
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    sort_selection_empty
 
-    // Get speed from user
+    // get speed from user
     bl      sort_get_speed
 
     bl      sort_reset_highlights
     bl      sort_display_array
 
-    adrp    x0, prompt_continue
-    add     x0, x0, :lo12:prompt_continue
+    ldr     x0, =prompt_continue
     bl      printf
     bl      wait_for_enter
 
@@ -667,8 +583,7 @@ sort_selection_interactive:
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_sorted
-    add     x0, x0, :lo12:msg_sorted
+    ldr     x0, =msg_sorted
     bl      printf
     bl      print_newline
 
@@ -678,38 +593,29 @@ sort_selection_empty:
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_empty
-    add     x0, x0, :lo12:msg_empty
+    ldr     x0, =msg_empty
     bl      printf
     bl      print_newline
 
 sort_selection_done:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: selection_sort
-// Selection sort with visualization
-// Parameters: none (uses global sort_array and sort_size)
-// Returns: none
-// ============================================================================
+// selection_sort() - swap the minimum of the unsorted tail to the front
     .global selection_sort
 selection_sort:
-    stp     x29, x30, [sp, -64]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -64]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
 
-    // Load size and array
-    adrp    x19, sort_size
-    add     x19, x19, :lo12:sort_size
+    ldr     x19, =sort_size
     ldr     w19, [x19]
 
-    adrp    x20, sort_array
-    add     x20, x20, :lo12:sort_array
+    ldr     x20, =sort_array
 
-    // Outer loop: i = 0 to n-2
+    // outer loop: i = 0 to n-2
     mov     w21, 0
 selection_outer:
     sub     w0, w19, 1
@@ -719,36 +625,32 @@ selection_outer:
     // min_idx = i
     mov     w22, w21
 
-    // Inner loop: j = i+1 to n-1
+    // inner loop: j = i+1 to n-1
     add     w23, w21, 1
 selection_inner:
     cmp     w23, w19
     b.ge    selection_inner_done
 
-    // Highlight current position and current min
-    adrp    x24, highlight_idx1
-    add     x24, x24, :lo12:highlight_idx1
+    // highlight current position and current min
+    ldr     x24, =highlight_idx1
     str     w22, [x24]
 
-    adrp    x24, highlight_idx2
-    add     x24, x24, :lo12:highlight_idx2
+    ldr     x24, =highlight_idx2
     str     w23, [x24]
 
     bl      sort_display_array
 
-    // Delay
-    adrp    x1, sort_delay
-    add     x1, x1, :lo12:sort_delay
+    ldr     x1, =sort_delay
     ldr     w0, [x1]
     bl      delay_ms
 
-    // Compare arr[j] < arr[min_idx]
+    // compare arr[j] < arr[min_idx]
     ldr     w0, [x20, w23, SXTW 2]
     ldr     w1, [x20, w22, SXTW 2]
     cmp     w0, w1
     b.ge    selection_no_update
 
-    // Update min_idx
+    // update min_idx
     mov     w22, w23
 
 selection_no_update:
@@ -756,7 +658,7 @@ selection_no_update:
     b       selection_inner
 
 selection_inner_done:
-    // Swap arr[i] and arr[min_idx] if different
+    // swap arr[i] and arr[min_idx] if different
     cmp     w21, w22
     b.eq    selection_no_swap
 
@@ -770,9 +672,8 @@ selection_inner_done:
     bl      delay_ms
 
 selection_no_swap:
-    // Mark element as sorted
-    adrp    x23, sorted_up_to
-    add     x23, x23, :lo12:sorted_up_to
+    // mark element as sorted
+    ldr     x23, =sorted_up_to
     str     w21, [x23]
 
     add     w21, w21, 1
@@ -780,8 +681,7 @@ selection_no_swap:
 
 selection_done:
     sub     w0, w19, 1
-    adrp    x23, sorted_up_to
-    add     x23, x23, :lo12:sorted_up_to
+    ldr     x23, =sorted_up_to
     str     w0, [x23]
 
     bl      sort_reset_highlights
@@ -790,35 +690,28 @@ selection_done:
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 64
+    ldp     fp, lr, [sp], 64
     ret
 
-// ============================================================================
-// FUNCTION: sort_insertion_interactive
-// Interactive insertion sort with visualization
-// Parameters: none
-// Returns: none
-// ============================================================================
+// sort_insertion_interactive() - speed prompt, then animated insertion sort
     .global sort_insertion_interactive
 sort_insertion_interactive:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
-    // Check if array is initialized
-    adrp    x0, sort_size
-    add     x0, x0, :lo12:sort_size
+    // check if array is initialized
+    ldr     x0, =sort_size
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    sort_insertion_empty
 
-    // Get speed from user
+    // get speed from user
     bl      sort_get_speed
 
     bl      sort_reset_highlights
     bl      sort_display_array
 
-    adrp    x0, prompt_continue
-    add     x0, x0, :lo12:prompt_continue
+    ldr     x0, =prompt_continue
     bl      printf
     bl      wait_for_enter
 
@@ -827,8 +720,7 @@ sort_insertion_interactive:
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_sorted
-    add     x0, x0, :lo12:msg_sorted
+    ldr     x0, =msg_sorted
     bl      printf
     bl      print_newline
 
@@ -838,44 +730,34 @@ sort_insertion_empty:
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_empty
-    add     x0, x0, :lo12:msg_empty
+    ldr     x0, =msg_empty
     bl      printf
     bl      print_newline
 
 sort_insertion_done:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: insertion_sort
-// Insertion sort with visualization
-// Parameters: none (uses global sort_array and sort_size)
-// Returns: none
-// ============================================================================
+// insertion_sort() - shift each key left into the sorted prefix
     .global insertion_sort
 insertion_sort:
-    stp     x29, x30, [sp, -64]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -64]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
 
-    // Load size and array
-    adrp    x19, sort_size
-    add     x19, x19, :lo12:sort_size
+    ldr     x19, =sort_size
     ldr     w19, [x19]
 
-    adrp    x20, sort_array
-    add     x20, x20, :lo12:sort_array
+    ldr     x20, =sort_array
 
-    // First element is already sorted
+    // first element is already sorted
     mov     w0, 0
-    adrp    x21, sorted_up_to
-    add     x21, x21, :lo12:sorted_up_to
+    ldr     x21, =sorted_up_to
     str     w0, [x21]
 
-    // Loop: i = 1 to n-1
+    // loop: i = 1 to n-1
     mov     w21, 1
 insertion_outer:
     cmp     w21, w19
@@ -888,59 +770,53 @@ insertion_outer:
     sub     w23, w21, 1
 
 insertion_inner:
-    // Check if j < 0
     cmp     w23, 0
     b.lt    insertion_inner_done
 
-    // Highlight element being compared and the key position
-    adrp    x24, highlight_idx1
-    add     x24, x24, :lo12:highlight_idx1
-    str     w23, [x24]                   // Element to compare
+    // highlight element being compared and the key position
+    ldr     x24, =highlight_idx1
+    str     w23, [x24]                   // element to compare
 
-    adrp    x24, highlight_idx2
-    add     x24, x24, :lo12:highlight_idx2
+    ldr     x24, =highlight_idx2
     add     w0, w23, 1
-    str     w0, [x24]                    // Key position
+    str     w0, [x24]                    // key position
 
-    // Display before comparison
+    // display before comparison
     bl      sort_display_array
 
-    // Delay to show comparison
-    adrp    x1, sort_delay
-    add     x1, x1, :lo12:sort_delay
+    // delay to show comparison
+    ldr     x1, =sort_delay
     ldr     w0, [x1]
     bl      delay_ms
 
-    // Check if arr[j] > key
+    // check if arr[j] > key
     ldr     w0, [x20, w23, SXTW 2]
     cmp     w0, w22
     b.le    insertion_inner_done
 
-    // Shift arr[j] to arr[j+1]
+    // shift arr[j] to arr[j+1]
     add     w1, w23, 1
     str     w0, [x20, w1, SXTW 2]
 
-    // Display after shift to show movement
+    // display after shift to show movement
     bl      sort_display_array
 
-    // Shorter delay for shift
-    adrp    x1, sort_delay
-    add     x1, x1, :lo12:sort_delay
+    // shorter delay for shift
+    ldr     x1, =sort_delay
     ldr     w0, [x1]
-    lsr     w0, w0, 1                    // Half delay for shift
+    lsr     w0, w0, 1                    // half delay for shift
     bl      delay_ms
 
     sub     w23, w23, 1
     b       insertion_inner
 
 insertion_inner_done:
-    // Place key at arr[j+1]
+    // place key at arr[j+1]
     add     w0, w23, 1
     str     w22, [x20, w0, SXTW 2]
 
-    // Mark up to current as sorted
-    adrp    x23, sorted_up_to
-    add     x23, x23, :lo12:sorted_up_to
+    // mark up to current as sorted
+    ldr     x23, =sorted_up_to
     str     w21, [x23]
 
     add     w21, w21, 1
@@ -948,8 +824,7 @@ insertion_inner_done:
 
 insertion_done:
     sub     w0, w19, 1
-    adrp    x23, sorted_up_to
-    add     x23, x23, :lo12:sorted_up_to
+    ldr     x23, =sorted_up_to
     str     w0, [x23]
 
     bl      sort_reset_highlights
@@ -958,142 +833,114 @@ insertion_done:
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 64
+    ldp     fp, lr, [sp], 64
     ret
 
-// ============================================================================
-// FUNCTION: sort_get_speed
-// Prompts user to enter animation speed
-// Parameters: none
-// Returns: none (updates sort_delay)
-// ============================================================================
+// sort_get_speed() - read the animation delay (100-2500 ms) into sort_delay
     .global sort_get_speed
 sort_get_speed:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     str     x19, [sp, 16]
 
-    // Position cursor for prompt
+    // position cursor for prompt
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
 
-    // Prompt for speed
-    adrp    x0, prompt_speed
-    add     x0, x0, :lo12:prompt_speed
+    ldr     x0, =prompt_speed
     bl      printf
 
-    // Read speed with range validation (100-2500 ms)
     mov     w0, 100                          // min
     mov     w1, 2500                         // max
     bl      read_int_range
-    mov     w19, w0                          // Save speed
+    mov     w19, w0                          // save speed
 
-    // Store in sort_delay
-    adrp    x0, sort_delay
-    add     x0, x0, :lo12:sort_delay
+    ldr     x0, =sort_delay
     str     w19, [x0]
 
     ldr     x19, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// FUNCTION: sort_reset_highlights
-// Resets all highlight indices
-// Parameters: none
-// Returns: none
-// ============================================================================
+// sort_reset_highlights() - clear every highlight and range index
     .global sort_reset_highlights
 sort_reset_highlights:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
     mov     w0, -1
 
-    adrp    x1, highlight_idx1
-    add     x1, x1, :lo12:highlight_idx1
+    ldr     x1, =highlight_idx1
     str     w0, [x1]
 
-    adrp    x1, highlight_idx2
-    add     x1, x1, :lo12:highlight_idx2
+    ldr     x1, =highlight_idx2
     str     w0, [x1]
 
-    adrp    x1, sorted_up_to
-    add     x1, x1, :lo12:sorted_up_to
+    ldr     x1, =sorted_up_to
     str     w0, [x1]
 
-    adrp    x1, merge_left
-    add     x1, x1, :lo12:merge_left
+    ldr     x1, =sorted_from
     str     w0, [x1]
 
-    adrp    x1, merge_right
-    add     x1, x1, :lo12:merge_right
+    ldr     x1, =merge_left
     str     w0, [x1]
 
-    adrp    x1, merge_mid
-    add     x1, x1, :lo12:merge_mid
+    ldr     x1, =merge_right
     str     w0, [x1]
 
-    ldp     x29, x30, [sp], 16
+    ldr     x1, =merge_mid
+    str     w0, [x1]
+
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: sort_merge_interactive
-// Interactive merge sort with visualization
-// ============================================================================
+// sort_merge_interactive() - speed prompt, then animated merge sort
     .global sort_merge_interactive
 sort_merge_interactive:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
-    // Check if array is initialized
-    adrp    x0, sort_size
-    add     x0, x0, :lo12:sort_size
+    // check if array is initialized
+    ldr     x0, =sort_size
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    merge_empty
 
-    // Get speed from user
+    // get speed from user
     bl      sort_get_speed
 
-    // Clear screen and display array
     bl      ansi_clear_screen
     bl      sort_reset_highlights
     bl      sort_display_array
 
-    // Position cursor for message
+    // position cursor for message
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, prompt_continue
-    add     x0, x0, :lo12:prompt_continue
+    ldr     x0, =prompt_continue
     bl      printf
 
     bl      wait_for_enter
 
-    // Perform merge sort
     bl      sort_merge_sort
 
-    // Display final sorted array
+    // display final sorted array
     bl      sort_reset_highlights
-    adrp    x0, sort_size
-    add     x0, x0, :lo12:sort_size
+    ldr     x0, =sort_size
     ldr     w0, [x0]
     sub     w0, w0, 1
-    adrp    x1, sorted_up_to
-    add     x1, x1, :lo12:sorted_up_to
+    ldr     x1, =sorted_up_to
     str     w0, [x1]
     bl      sort_display_array
 
-    // Position cursor for message
+    // position cursor for message
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_sorted
-    add     x0, x0, :lo12:msg_sorted
+    ldr     x0, =msg_sorted
     bl      printf
     bl      print_newline
 
@@ -1104,54 +951,46 @@ merge_empty:
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_empty
-    add     x0, x0, :lo12:msg_empty
+    ldr     x0, =msg_empty
     bl      printf
     bl      print_newline
 
 merge_done:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: sort_merge_sort
-// Bottom-up iterative merge sort
-// ============================================================================
+// sort_merge_sort() - bottom-up merge sort, doubling the run width each pass
 sort_merge_sort:
-    stp     x29, x30, [sp, -64]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -64]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
 
-    // Load array size
-    adrp    x0, sort_size
-    add     x0, x0, :lo12:sort_size
+    ldr     x0, =sort_size
     ldr     w19, [x0]                    // w19 = size
 
-    // Load array pointer
-    adrp    x22, sort_array              // x22 = array_ptr
-    add     x22, x22, :lo12:sort_array
+    ldr     x22, =sort_array             // x22 = array_ptr
 
-    // Start with merge size of 1, double each iteration
+    // start with merge size of 1, double each iteration
     mov     w20, 1                       // w20 = curr_size
 
 merge_outer_loop:
     cmp     w20, w19
     b.ge    merge_sort_done
 
-    // Start from leftmost subarray
+    // start from leftmost subarray
     mov     w21, 0                       // w21 = left_start
 
 merge_inner_loop:
     cmp     w21, w19
     b.ge    merge_next_size
 
-    // Calculate mid and right_end
+    // calculate mid and right_end
     add     w23, w21, w20                // w23 = mid
     sub     w23, w23, 1
 
-    // Calculate right_end = min(left_start + 2*curr_size - 1, size - 1)
+    // calculate right_end = min(left_start + 2*curr_size - 1, size - 1)
     lsl     w0, w20, 1
     add     w24, w21, w0                 // w24 = right_end
     sub     w24, w24, 1
@@ -1159,47 +998,43 @@ merge_inner_loop:
     cmp     w24, w0
     csel    w24, w24, w0, lt
 
-    // Only merge if mid < right_end
+    // only merge if mid < right_end
     cmp     w23, w24
     b.ge    merge_skip
 
-    // Set merge bounds for visualization
-    adrp    x0, merge_left
-    add     x0, x0, :lo12:merge_left
+    // set merge bounds for visualization
+    ldr     x0, =merge_left
     str     w21, [x0]
 
-    adrp    x0, merge_right
-    add     x0, x0, :lo12:merge_right
+    ldr     x0, =merge_right
     str     w24, [x0]
 
-    adrp    x0, merge_mid
-    add     x0, x0, :lo12:merge_mid
+    ldr     x0, =merge_mid
     str     w23, [x0]
 
-    // Perform merge
+    // perform merge
     mov     w0, w21
     mov     w1, w23
     mov     w2, w24
     bl      sort_merge_arrays
 
-    // Clear highlights after merge completes
+    // clear highlights after merge completes
     bl      sort_reset_highlights
 
-    // Brief pause between merge operations
-    adrp    x0, sort_delay
-    add     x0, x0, :lo12:sort_delay
+    // brief pause between merge operations
+    ldr     x0, =sort_delay
     ldr     w0, [x0]
-    lsr     w0, w0, 1                    // Half delay between merges
+    lsr     w0, w0, 1                    // half delay between merges
     bl      delay_ms
 
 merge_skip:
-    // Move to next pair of subarrays
+    // move to next pair of subarrays
     lsl     w0, w20, 1
     add     w21, w21, w0
     b       merge_inner_loop
 
 merge_next_size:
-    // Double the merge size
+    // double the merge size
     lsl     w20, w20, 1
     b       merge_outer_loop
 
@@ -1207,17 +1042,14 @@ merge_sort_done:
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 64
+    ldp     fp, lr, [sp], 64
     ret
 
-// ============================================================================
-// FUNCTION: sort_merge_arrays
-// Merge two sorted subarrays
-// Parameters: w0 = left, w1 = mid, w2 = right
-// ============================================================================
+// sort_merge_arrays(w0 = left, w1 = mid, w2 = right)
+// merge two sorted runs through sort_aux_array
 sort_merge_arrays:
-    stp     x29, x30, [sp, -80]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -80]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     stp     x23, x24, [sp, 48]
@@ -1227,129 +1059,114 @@ sort_merge_arrays:
     mov     w20, w1                      // w20 = mid
     mov     w21, w2                      // w21 = right
 
-    // Load array pointers
-    adrp    x25, sort_array              // x25 = array_ptr
-    add     x25, x25, :lo12:sort_array
+    ldr     x25, =sort_array             // x25 = array_ptr
+    ldr     x26, =sort_aux_array         // x26 = aux_ptr
 
-    adrp    x26, sort_aux_array          // x26 = aux_ptr
-    add     x26, x26, :lo12:sort_aux_array
-
-    // Copy to auxiliary array
+    // copy to auxiliary array
     mov     w22, w19                     // w22 = i = left
 merge_copy_loop:
-    cmp     w22, w21                     // Compare i with right
+    cmp     w22, w21                     // compare i with right
     b.gt    merge_copy_done
-    ldr     w0, [x25, w22, SXTW 2]       // Load array[i]
-    str     w0, [x26, w22, SXTW 2]       // Store to aux[i]
+    ldr     w0, [x25, w22, SXTW 2]       // load array[i]
+    str     w0, [x26, w22, SXTW 2]       // store to aux[i]
     add     w22, w22, 1                  // i++
     b       merge_copy_loop
 
 merge_copy_done:
-    // Merge back to original array
+    // merge back to original array
     mov     w22, w19                     // w22 = i = left (left subarray index)
     add     w23, w20, 1                  // w23 = j = mid + 1 (right subarray index)
     mov     w24, w19                     // w24 = k = left (merged array index)
 
 merge_compare_loop:
-    cmp     w22, w20                     // Compare i with mid
+    cmp     w22, w20                     // compare i with mid
     b.gt    merge_copy_right
-    cmp     w23, w21                     // Compare j with right
+    cmp     w23, w21                     // compare j with right
     b.gt    merge_copy_left
 
-    // Highlight the two elements being compared during merge
+    // highlight the two elements being compared during merge
     // highlight_idx1 = i (from left subarray)
     // highlight_idx2 = j (from right subarray)
-    adrp    x0, highlight_idx1
-    add     x0, x0, :lo12:highlight_idx1
+    ldr     x0, =highlight_idx1
     str     w22, [x0]
 
-    adrp    x0, highlight_idx2
-    add     x0, x0, :lo12:highlight_idx2
+    ldr     x0, =highlight_idx2
     str     w23, [x0]
 
-    // Display to show which two elements we're comparing
+    // repaint to show the pair being compared
     bl      sort_display_array
 
-    // Delay to show comparison
-    adrp    x0, sort_delay
-    add     x0, x0, :lo12:sort_delay
+    // delay to show comparison
+    ldr     x0, =sort_delay
     ldr     w0, [x0]
     bl      delay_ms
 
-    // Compare aux[i] and aux[j]
-    ldr     w0, [x26, w22, SXTW 2]       // Load aux[i]
-    ldr     w1, [x26, w23, SXTW 2]       // Load aux[j]
+    // compare aux[i] and aux[j]
+    ldr     w0, [x26, w22, SXTW 2]       // load aux[i]
+    ldr     w1, [x26, w23, SXTW 2]       // load aux[j]
     cmp     w0, w1
     b.le    merge_take_left
 
 merge_take_right:
-    str     w1, [x25, w24, SXTW 2]       // Store aux[j] to array[k]
+    str     w1, [x25, w24, SXTW 2]       // store aux[j] to array[k]
     add     w23, w23, 1                  // j++
     add     w24, w24, 1                  // k++
 
-    // Clear highlights and show element placed
-    adrp    x0, highlight_idx1
-    add     x0, x0, :lo12:highlight_idx1
+    // clear highlights and show element placed
+    ldr     x0, =highlight_idx1
     mov     w1, -1
     str     w1, [x0]
 
-    adrp    x0, highlight_idx2
-    add     x0, x0, :lo12:highlight_idx2
+    ldr     x0, =highlight_idx2
     str     w1, [x0]
 
     bl      sort_display_array
 
-    adrp    x0, sort_delay
-    add     x0, x0, :lo12:sort_delay
+    ldr     x0, =sort_delay
     ldr     w0, [x0]
-    lsr     w0, w0, 1                    // Half delay for placement
+    lsr     w0, w0, 1                    // half delay for placement
     bl      delay_ms
 
     b       merge_compare_loop
 
 merge_take_left:
-    str     w0, [x25, w24, SXTW 2]       // Store aux[i] to array[k]
+    str     w0, [x25, w24, SXTW 2]       // store aux[i] to array[k]
     add     w22, w22, 1                  // i++
     add     w24, w24, 1                  // k++
 
-    // Clear highlights and show element placed
-    adrp    x0, highlight_idx1
-    add     x0, x0, :lo12:highlight_idx1
+    // clear highlights and show element placed
+    ldr     x0, =highlight_idx1
     mov     w1, -1
     str     w1, [x0]
 
-    adrp    x0, highlight_idx2
-    add     x0, x0, :lo12:highlight_idx2
+    ldr     x0, =highlight_idx2
     str     w1, [x0]
 
     bl      sort_display_array
 
-    adrp    x0, sort_delay
-    add     x0, x0, :lo12:sort_delay
+    ldr     x0, =sort_delay
     ldr     w0, [x0]
-    lsr     w0, w0, 1                    // Half delay for placement
+    lsr     w0, w0, 1                    // half delay for placement
     bl      delay_ms
 
     b       merge_compare_loop
 
 merge_copy_left:
-    cmp     w22, w20                     // Compare i with mid
+    cmp     w22, w20                     // compare i with mid
     b.gt    merge_complete
 
-    // Highlight remaining element being copied
-    adrp    x0, highlight_idx1
-    add     x0, x0, :lo12:highlight_idx1
+    // highlight remaining element being copied
+    ldr     x0, =highlight_idx1
     str     w22, [x0]
 
-    ldr     w0, [x26, w22, SXTW 2]       // Load aux[i]
-    str     w0, [x25, w24, SXTW 2]       // Store to array[k]
+    ldr     w0, [x26, w22, SXTW 2]       // load aux[i]
+    str     w0, [x25, w24, SXTW 2]       // store to array[k]
 
     bl      sort_display_array
 
-    adrp    x0, sort_delay
-    add     x0, x0, :lo12:sort_delay
+    ldr     x0, =sort_delay
     ldr     w0, [x0]
-    lsr     w0, w0, 1                    // Half delay
+    lsr     w0, w0, 1                    // half delay
     bl      delay_ms
 
     add     w22, w22, 1                  // i++
@@ -1357,23 +1174,21 @@ merge_copy_left:
     b       merge_copy_left
 
 merge_copy_right:
-    cmp     w23, w21                     // Compare j with right
+    cmp     w23, w21                     // compare j with right
     b.gt    merge_complete
 
-    // Highlight remaining element being copied
-    adrp    x0, highlight_idx2
-    add     x0, x0, :lo12:highlight_idx2
+    // highlight remaining element being copied
+    ldr     x0, =highlight_idx2
     str     w23, [x0]
 
-    ldr     w0, [x26, w23, SXTW 2]       // Load aux[j]
-    str     w0, [x25, w24, SXTW 2]       // Store to array[k]
+    ldr     w0, [x26, w23, SXTW 2]       // load aux[j]
+    str     w0, [x25, w24, SXTW 2]       // store to array[k]
 
     bl      sort_display_array
 
-    adrp    x0, sort_delay
-    add     x0, x0, :lo12:sort_delay
+    ldr     x0, =sort_delay
     ldr     w0, [x0]
-    lsr     w0, w0, 1                    // Half delay
+    lsr     w0, w0, 1                    // half delay
     bl      delay_ms
 
     add     w23, w23, 1                  // j++
@@ -1385,70 +1200,60 @@ merge_complete:
     ldp     x23, x24, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 80
+    ldp     fp, lr, [sp], 80
     ret
 
-// ============================================================================
-// FUNCTION: sort_quick_interactive
-// Interactive quick sort with visualization
-// ============================================================================
+// sort_quick_interactive() - speed prompt, then animated quick sort
     .global sort_quick_interactive
 sort_quick_interactive:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
-    // Check if array is initialized
-    adrp    x0, sort_size
-    add     x0, x0, :lo12:sort_size
+    // check if array is initialized
+    ldr     x0, =sort_size
     ldr     w0, [x0]
     cmp     w0, 0
     b.le    quick_empty
 
-    // Get speed from user
+    // get speed from user
     bl      sort_get_speed
 
-    // Clear screen and display array
     bl      ansi_clear_screen
     bl      sort_reset_highlights
     bl      sort_display_array
 
-    // Position cursor for message
+    // position cursor for message
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, prompt_continue
-    add     x0, x0, :lo12:prompt_continue
+    ldr     x0, =prompt_continue
     bl      printf
 
     bl      wait_for_enter
 
-    // Perform quick sort
+    // sort the full range
     mov     w0, 0
-    adrp    x1, sort_size
-    add     x1, x1, :lo12:sort_size
+    ldr     x1, =sort_size
     ldr     w1, [x1]
     sub     w1, w1, 1
     bl      sort_quick_sort
 
-    // Display final sorted array
+    // display final sorted array
     bl      sort_reset_highlights
-    adrp    x0, sort_size
-    add     x0, x0, :lo12:sort_size
+    ldr     x0, =sort_size
     ldr     w0, [x0]
     sub     w0, w0, 1
-    adrp    x1, sorted_up_to
-    add     x1, x1, :lo12:sorted_up_to
+    ldr     x1, =sorted_up_to
     str     w0, [x1]
     bl      sort_display_array
 
-    // Position cursor for message
+    // position cursor for message
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_sorted
-    add     x0, x0, :lo12:msg_sorted
+    ldr     x0, =msg_sorted
     bl      printf
     bl      print_newline
 
@@ -1459,64 +1264,55 @@ quick_empty:
     mov     w0, 22
     mov     w1, 1
     bl      ansi_move_cursor
-    adrp    x0, msg_empty
-    add     x0, x0, :lo12:msg_empty
+    ldr     x0, =msg_empty
     bl      printf
     bl      print_newline
 
 quick_done:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: sort_quick_sort
-// Recursive quick sort
-// Parameters: w0 = low, w1 = high
-// ============================================================================
+// sort_quick_sort(w0 = low, w1 = high) - recursive quick sort
 sort_quick_sort:
-    stp     x29, x30, [sp, -48]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -48]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     str     x21, [sp, 32]
 
     mov     w19, w0                      // w19 = low
     mov     w20, w1                      // w20 = high
 
-    // Base case: if low >= high, return
-    cmp     w19, w20                     // Compare low with high
+    // base case: if low >= high, return
+    cmp     w19, w20
     b.ge    quick_sort_done
 
-    // Partition array and get pivot index
-    mov     w0, w19                      // Pass low
-    mov     w1, w20                      // Pass high
+    // partition array and get pivot index
+    mov     w0, w19                      // pass low
+    mov     w1, w20                      // pass high
     bl      sort_quick_partition
     mov     w21, w0                      // w21 = pivot index
 
-    // Recursively sort left partition
-    mov     w0, w19                      // Pass low
-    sub     w1, w21, 1                   // Pass pivot - 1
+    // recursively sort left partition
+    mov     w0, w19                      // pass low
+    sub     w1, w21, 1                   // pass pivot - 1
     bl      sort_quick_sort
 
-    // Recursively sort right partition
-    add     w0, w21, 1                   // Pass pivot + 1
-    mov     w1, w20                      // Pass high
+    // recursively sort right partition
+    add     w0, w21, 1                   // pass pivot + 1
+    mov     w1, w20                      // pass high
     bl      sort_quick_sort
 
 quick_sort_done:
     ldr     x21, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 48
+    ldp     fp, lr, [sp], 48
     ret
 
-// ============================================================================
-// FUNCTION: sort_quick_partition
-// Partition array for quick sort (last element as pivot)
-// Parameters: w0 = low, w1 = high
-// Returns: w0 = pivot index
-// ============================================================================
+// sort_quick_partition(w0 = low, w1 = high) -> w0 = pivot index
+// last element is the pivot
 sort_quick_partition:
-    stp     x29, x30, [sp, -64]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -64]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
     str     x23, [sp, 48]
@@ -1525,65 +1321,55 @@ sort_quick_partition:
     mov     w19, w0                      // w19 = low
     mov     w20, w1                      // w20 = high
 
-    // Load array pointer
-    adrp    x24, sort_array              // x24 = array_ptr
-    add     x24, x24, :lo12:sort_array
+    ldr     x24, =sort_array             // x24 = array_ptr
 
-    // Choose last element as pivot
+    // choose last element as pivot
     ldr     w21, [x24, w20, SXTW 2]      // w21 = pivot_val = array[high]
 
-    // Highlight pivot
-    adrp    x0, highlight_idx1
-    add     x0, x0, :lo12:highlight_idx1
-    str     w20, [x0]                    // Store high as highlight
+    // highlight pivot
+    ldr     x0, =highlight_idx1
+    str     w20, [x0]                    // store high as highlight
 
-    // Display with pivot highlighted
     bl      sort_display_array
 
-    // i = low - 1
     sub     w22, w19, 1                  // w22 = i = low - 1
 
-    // j starts from low
     mov     w23, w19                     // w23 = j = low
 
 partition_loop:
-    cmp     w23, w20                     // Compare j with high
+    cmp     w23, w20                     // compare j with high
     b.ge    partition_done
 
-    // Highlight current element being compared
-    adrp    x0, highlight_idx2
-    add     x0, x0, :lo12:highlight_idx2
-    str     w23, [x0]                    // Store j as highlight
+    // highlight current element being compared
+    ldr     x0, =highlight_idx2
+    str     w23, [x0]                    // store j as highlight
 
-    // Display BEFORE comparison so user sees what we're comparing
+    // repaint before the compare
     bl      sort_display_array
 
-    // Delay to show comparison
-    adrp    x0, sort_delay
-    add     x0, x0, :lo12:sort_delay
+    // delay to show comparison
+    ldr     x0, =sort_delay
     ldr     w0, [x0]
     bl      delay_ms
 
-    // Compare arr[j] with pivot
-    ldr     w0, [x24, w23, SXTW 2]       // Load array[j]
-    cmp     w0, w21                      // Compare with pivot_val
+    // compare arr[j] with pivot
+    ldr     w0, [x24, w23, SXTW 2]       // load array[j]
+    cmp     w0, w21                      // compare with pivot_val
     b.gt    partition_no_swap
 
-    // Increment i
     add     w22, w22, 1                  // i++
 
-    // Swap arr[i] and arr[j]
-    ldr     w0, [x24, w22, SXTW 2]       // Load array[i]
-    ldr     w1, [x24, w23, SXTW 2]       // Load array[j]
-    str     w1, [x24, w22, SXTW 2]       // Store array[j] to array[i]
-    str     w0, [x24, w23, SXTW 2]       // Store array[i] to array[j]
+    // swap arr[i] and arr[j]
+    ldr     w0, [x24, w22, SXTW 2]       // load array[i]
+    ldr     w1, [x24, w23, SXTW 2]       // load array[j]
+    str     w1, [x24, w22, SXTW 2]       // store array[j] to array[i]
+    str     w0, [x24, w23, SXTW 2]       // store array[i] to array[j]
 
-    // Display after swap
+    // display after swap
     bl      sort_display_array
 
-    // Delay after swap
-    adrp    x0, sort_delay
-    add     x0, x0, :lo12:sort_delay
+    // delay after swap
+    ldr     x0, =sort_delay
     ldr     w0, [x0]
     bl      delay_ms
 
@@ -1592,32 +1378,28 @@ partition_no_swap:
     b       partition_loop
 
 partition_done:
-    // Swap arr[i+1] with arr[high] (pivot)
+    // swap arr[i+1] with arr[high] (pivot)
     add     w22, w22, 1                  // i++
-    ldr     w0, [x24, w22, SXTW 2]       // Load array[i]
-    ldr     w1, [x24, w20, SXTW 2]       // Load array[high]
-    str     w1, [x24, w22, SXTW 2]       // Store array[high] to array[i]
-    str     w0, [x24, w20, SXTW 2]       // Store array[i] to array[high]
+    ldr     w0, [x24, w22, SXTW 2]       // load array[i]
+    ldr     w1, [x24, w20, SXTW 2]       // load array[high]
+    str     w1, [x24, w22, SXTW 2]       // store array[high] to array[i]
+    str     w0, [x24, w20, SXTW 2]       // store array[i] to array[high]
 
-    // Display final pivot position
-    adrp    x0, highlight_idx2
-    add     x0, x0, :lo12:highlight_idx2
+    // display final pivot position
+    ldr     x0, =highlight_idx2
     mov     w1, -1
     str     w1, [x0]
     bl      sort_display_array
 
-    // Delay
-    adrp    x0, sort_delay
-    add     x0, x0, :lo12:sort_delay
+    ldr     x0, =sort_delay
     ldr     w0, [x0]
     bl      delay_ms
 
-    // Return pivot index
-    mov     w0, w22                      // Return i
+    mov     w0, w22                      // return i
 
     ldr     x24, [sp, 56]
     ldr     x23, [sp, 48]
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 64
+    ldp     fp, lr, [sp], 64
     ret

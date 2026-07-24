@@ -1,33 +1,21 @@
-// ============================================================================
-// array_viz.asm - Array Visualization Module
-// ============================================================================
-// Implements array data structure with visualization capabilities:
-// - Initialize array with random or user-specified values
-// - Display array with indices and values
-// - Highlight specific elements (for algorithm visualization)
-// - Swap elements with visual feedback
-// - Get/set operations
-// ============================================================================
+// array_viz.asm - array visualizer: init, display, get/set, swap, clear
+// static 10-slot int array with an optional highlight for animations
 
-include(`macros.m4')
+define(fp, x29)
+define(lr, x30)
 
-    .data
-    .balign 8
+.data
+.balign 8
 
-// ----------------------------------------------------------------------------
-// Array Data Storage
-// ----------------------------------------------------------------------------
-array_max_size = 10                         // Maximum array capacity
-array_data:     .skip array_max_size * 4    // Array storage (10 x 4 bytes)
-array_count:    .word 0                     // Current number of elements
+array_max_size = 10                         // capacity in elements
 
-// Highlight tracking for visualization
-highlight_index: .word -1                   // Index to highlight (-1 = none)
-highlight_color: .word 33                   // Color for highlighting (yellow)
+array_data:     .skip array_max_size * 4    // 10 x 4-byte ints
+array_count:    .word 0                     // elements in use
 
-// ----------------------------------------------------------------------------
-// UI Strings
-// ----------------------------------------------------------------------------
+// highlight state for algorithm visualization
+highlight_index: .word -1                   // index to highlight (-1 = none)
+highlight_color: .word 33                   // yellow
+
 array_title:        .string "ARRAY VISUALIZATION"
 array_menu_title:   .string "ARRAY OPERATIONS MENU"
 
@@ -59,55 +47,39 @@ label_index:        .string "Index:"
 label_value:        .string "Value:"
 label_size:         .string "Size: %d/%d"
 
-    .text
-    .balign 4
+.text
+.balign 4
 
-// ============================================================================
-// FUNCTION: array_menu
-// Main menu for array operations
-// Parameters: none
-// Returns: none
-// ============================================================================
+// array_menu - operations menu loop; returns when the user picks 0
     .global array_menu
 array_menu:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
 array_menu_loop:
-    // Clear screen and display menu
     bl      ansi_clear_screen
     bl      display_array_menu
 
-    // Get user choice
-    mov     w0, 0                            // min
-    mov     w1, 7                            // max
+    mov     w0, 0                           // min
+    mov     w1, 7                           // max
     bl      read_int_range
 
-    // Dispatch based on choice
     cmp     w0, 0
     b.eq    array_menu_exit
-
     cmp     w0, 1
     b.eq    array_menu_init_random
-
     cmp     w0, 2
     b.eq    array_menu_init_user
-
     cmp     w0, 3
     b.eq    array_menu_display
-
     cmp     w0, 4
     b.eq    array_menu_set
-
     cmp     w0, 5
     b.eq    array_menu_get
-
     cmp     w0, 6
     b.eq    array_menu_swap
-
     cmp     w0, 7
     b.eq    array_menu_clear
-
     b       array_menu_loop
 
 array_menu_init_random:
@@ -143,329 +115,266 @@ array_menu_swap:
 array_menu_clear:
     bl      array_clear
 
-    // Position cursor for status message
-    mov     w0, 22
+    mov     w0, 22                          // status line
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_cleared
-    add     x0, x0, :lo12:msg_cleared
+    ldr     x0, =msg_cleared
     bl      printf
     bl      print_newline
     bl      wait_for_enter
     b       array_menu_loop
 
 array_menu_exit:
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: display_array_menu
-// Displays the array operations menu
-// Parameters: none
-// Returns: none
-// ============================================================================
+// display_array_menu - draw the boxed operations menu
     .global display_array_menu
 display_array_menu:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
-    // Draw menu box
-    mov     w0, 3                            // row
-    mov     w1, 10                           // column
-    mov     w2, 60                           // width
-    mov     w3, 16                           // height
-    mov     w4, 1                            // double-line style
+    // menu box
+    mov     w0, 3                           // row
+    mov     w1, 10                          // column
+    mov     w2, 60                          // width
+    mov     w3, 16                          // height
+    mov     w4, 1                           // double-line style
     bl      draw_box
 
-    // Print title
+    // title
     mov     w0, 4
     mov     w1, 12
     bl      ansi_move_cursor
-    adrp    x0, array_menu_title
-    add     x0, x0, :lo12:array_menu_title
+    ldr     x0, =array_menu_title
     mov     w1, 56
     bl      print_centered
 
-    // Print separator
+    // separator under the title
     mov     w0, 5
     mov     w1, 10
     mov     w2, 60
     mov     w3, 1
     bl      draw_horizontal_border_top
 
-    // Print menu options
+    // options, one per row
     mov     w0, 7
     mov     w1, 15
     bl      ansi_move_cursor
-    adrp    x0, menu_opt_1
-    add     x0, x0, :lo12:menu_opt_1
+    ldr     x0, =menu_opt_1
     bl      printf
 
     mov     w0, 8
     mov     w1, 15
     bl      ansi_move_cursor
-    adrp    x0, menu_opt_2
-    add     x0, x0, :lo12:menu_opt_2
+    ldr     x0, =menu_opt_2
     bl      printf
 
     mov     w0, 9
     mov     w1, 15
     bl      ansi_move_cursor
-    adrp    x0, menu_opt_3
-    add     x0, x0, :lo12:menu_opt_3
+    ldr     x0, =menu_opt_3
     bl      printf
 
     mov     w0, 10
     mov     w1, 15
     bl      ansi_move_cursor
-    adrp    x0, menu_opt_4
-    add     x0, x0, :lo12:menu_opt_4
+    ldr     x0, =menu_opt_4
     bl      printf
 
     mov     w0, 11
     mov     w1, 15
     bl      ansi_move_cursor
-    adrp    x0, menu_opt_5
-    add     x0, x0, :lo12:menu_opt_5
+    ldr     x0, =menu_opt_5
     bl      printf
 
     mov     w0, 12
     mov     w1, 15
     bl      ansi_move_cursor
-    adrp    x0, menu_opt_6
-    add     x0, x0, :lo12:menu_opt_6
+    ldr     x0, =menu_opt_6
     bl      printf
 
     mov     w0, 13
     mov     w1, 15
     bl      ansi_move_cursor
-    adrp    x0, menu_opt_7
-    add     x0, x0, :lo12:menu_opt_7
+    ldr     x0, =menu_opt_7
     bl      printf
 
     mov     w0, 14
     mov     w1, 15
     bl      ansi_move_cursor
-    adrp    x0, menu_opt_0
-    add     x0, x0, :lo12:menu_opt_0
+    ldr     x0, =menu_opt_0
     bl      printf
 
-    // Print separator
+    // separator above the prompt
     mov     w0, 16
     mov     w1, 10
     mov     w2, 60
     mov     w3, 1
     bl      draw_horizontal_border_top
 
-    // Position cursor for input
+    // input prompt
     mov     w0, 17
     mov     w1, 15
     bl      ansi_move_cursor
-    adrp    x0, menu_prompt
-    add     x0, x0, :lo12:menu_prompt
+    ldr     x0, =menu_prompt
     bl      printf
 
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
 
-// ============================================================================
-// FUNCTION: array_init_random
-// Initializes array with random values
-// Parameters: none
-// Returns: none
-// ============================================================================
+// array_init_random - fill with random values (0-99), then show the result
     .global array_init_random
 array_init_random:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
 
     bl      ansi_clear_screen
 
-    // Prompt for array size
-    adrp    x0, prompt_count
-    add     x0, x0, :lo12:prompt_count
+    // ask how many elements
+    ldr     x0, =prompt_count
     mov     w1, array_max_size
     bl      printf
 
     mov     w0, 1
     mov     w1, array_max_size
     bl      read_int_range
-    mov     w19, w0                          // Save count
+    mov     w19, w0                         // w19 = count
 
-    // Store count
-    adrp    x20, array_count
-    add     x20, x20, :lo12:array_count
+    ldr     x20, =array_count
     str     w19, [x20]
 
-    // Fill with random values
-    adrp    x20, array_data
-    add     x20, x20, :lo12:array_data
-    mov     w21, 0                           // index
+    ldr     x20, =array_data                // x20 = array base
+    mov     w21, 0                          // w21 = index
 
 array_init_random_loop:
     cmp     w21, w19
     b.ge    array_init_random_done
 
-    // Generate random value (0-99)
-    mov     w0, 100
+    mov     w0, 100                         // values in [0, 100)
     bl      get_random
-
-    // Store in array
     str     w0, [x20, w21, SXTW 2]
 
     add     w21, w21, 1
     b       array_init_random_loop
 
 array_init_random_done:
-    // Display the array first
     bl      array_display
 
-    // Position cursor for success message
-    mov     w0, 15
+    mov     w0, 15                          // status line below the box
     mov     w1, 1
     bl      ansi_move_cursor
 
-    // Print success message
-    adrp    x0, msg_initialized
-    add     x0, x0, :lo12:msg_initialized
+    ldr     x0, =msg_initialized
     mov     w1, w19
     bl      printf
     bl      print_newline
 
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// FUNCTION: array_init_user
-// Initializes array with user-provided values
-// Parameters: none
-// Returns: none
-// ============================================================================
+// array_init_user - fill with values typed by the user
     .global array_init_user
 array_init_user:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
 
     bl      ansi_clear_screen
 
-    // Prompt for array size
-    adrp    x0, prompt_count
-    add     x0, x0, :lo12:prompt_count
+    // ask how many elements
+    ldr     x0, =prompt_count
     mov     w1, array_max_size
     bl      printf
 
     mov     w0, 1
     mov     w1, array_max_size
     bl      read_int_range
-    mov     w19, w0                          // Save count
+    mov     w19, w0                         // w19 = count
 
-    // Store count
-    adrp    x20, array_count
-    add     x20, x20, :lo12:array_count
+    ldr     x20, =array_count
     str     w19, [x20]
 
-    // Get values from user
-    adrp    x20, array_data
-    add     x20, x20, :lo12:array_data
-    mov     w21, 0                           // index
+    ldr     x20, =array_data                // x20 = array base
+    mov     w21, 0                          // w21 = index
 
 array_init_user_loop:
     cmp     w21, w19
     b.ge    array_init_user_done
 
-    // Prompt for value
-    adrp    x0, prompt_value
-    add     x0, x0, :lo12:prompt_value
+    ldr     x0, =prompt_value
     mov     w1, w21
     bl      printf
 
     bl      read_int
-    mov     w22, w0                          // Save value
-
-    // Store in array
+    mov     w22, w0                         // w22 = value
     str     w22, [x20, w21, SXTW 2]
 
     add     w21, w21, 1
     b       array_init_user_loop
 
 array_init_user_done:
-    // Display the array first
     bl      array_display
 
-    // Position cursor for success message
-    mov     w0, 15
+    mov     w0, 15                          // status line below the box
     mov     w1, 1
     bl      ansi_move_cursor
 
-    // Print success message
-    adrp    x0, msg_initialized
-    add     x0, x0, :lo12:msg_initialized
+    ldr     x0, =msg_initialized
     mov     w1, w19
     bl      printf
     bl      print_newline
 
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// FUNCTION: array_display
-// Displays the array with visual formatting
-// Parameters: none
-// Returns: none
-// ============================================================================
+// array_display - draw the array as an index row and a value row,
+// with highlight_index drawn on a yellow background when set
     .global array_display
 array_display:
-    stp     x29, x30, [sp, -48]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -48]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
 
     bl      ansi_clear_screen
 
-    // Load array count
-    adrp    x19, array_count
-    add     x19, x19, :lo12:array_count
-    ldr     w19, [x19]
+    ldr     x19, =array_count
+    ldr     w19, [x19]                      // w19 = count
 
-    // Check if empty
     cmp     w19, 0
     b.le    array_display_empty
 
-    // Draw box
+    // frame box
     mov     w0, 3
     mov     w1, 2
     mov     w2, 80
     mov     w3, 10
-    mov     w4, 0                            // single-line
+    mov     w4, 0                           // single-line style
     bl      draw_box
 
-    // Print title
+    // title
     mov     w0, 4
     mov     w1, 4
     bl      ansi_move_cursor
-    adrp    x0, array_title
-    add     x0, x0, :lo12:array_title
+    ldr     x0, =array_title
     mov     w1, 76
     bl      print_centered
 
-    // Print "Index:" label
+    // index row
     mov     w0, 6
     mov     w1, 10
     bl      ansi_move_cursor
-    adrp    x0, label_index
-    add     x0, x0, :lo12:label_index
+    ldr     x0, =label_index
     bl      printf
 
-    // Print indices
-    adrp    x20, array_data
-    add     x20, x20, :lo12:array_data
-    mov     w21, 0                           // index counter
-    mov     w22, 20                          // column position
+    ldr     x20, =array_data                // x20 = array base
+    mov     w21, 0                          // w21 = index
+    mov     w22, 20                         // w22 = column
 
 array_display_indices:
     cmp     w21, w19
@@ -475,32 +384,27 @@ array_display_indices:
     mov     w1, w22
     bl      ansi_move_cursor
 
-    adrp    x0, .Lindex_fmt
-    add     x0, x0, :lo12:.Lindex_fmt
+    ldr     x0, =.Lindex_fmt
     mov     w1, w21
     bl      printf
 
-    add     w22, w22, 6                      // Next column
+    add     w22, w22, 6                     // next column
     add     w21, w21, 1
     b       array_display_indices
 
 array_display_values_start:
-    // Print "Value:" label
+    // value row
     mov     w0, 7
     mov     w1, 10
     bl      ansi_move_cursor
-    adrp    x0, label_value
-    add     x0, x0, :lo12:label_value
+    ldr     x0, =label_value
     bl      printf
 
-    // Print values
-    mov     w21, 0                           // index counter
-    mov     w22, 20                          // column position
+    mov     w21, 0                          // w21 = index
+    mov     w22, 20                         // w22 = column
 
-    // Load highlight index
-    adrp    x23, highlight_index
-    add     x23, x23, :lo12:highlight_index
-    ldr     w23, [x23]
+    ldr     x23, =highlight_index
+    ldr     w23, [x23]                      // w23 = highlight index (-1 = none)
 
 array_display_values:
     cmp     w21, w19
@@ -510,38 +414,32 @@ array_display_values:
     mov     w1, w22
     bl      ansi_move_cursor
 
-    // Check if this index should be highlighted
     cmp     w21, w23
     b.ne    array_display_normal
 
-    // Highlighted value (yellow background)
-    mov     w0, 43                           // yellow background
+    mov     w0, 43                          // yellow background
     bl      ansi_set_color_bg
 
 array_display_normal:
-    // Print value
     ldr     w1, [x20, w21, SXTW 2]
-    adrp    x0, .Lvalue_fmt
-    add     x0, x0, :lo12:.Lvalue_fmt
+    ldr     x0, =.Lvalue_fmt
     bl      printf
 
-    // Reset color if was highlighted
+    // drop the highlight again
     cmp     w21, w23
     b.ne    array_display_next
     bl      ansi_reset_attributes
 
 array_display_next:
-    add     w22, w22, 6                      // Next column
+    add     w22, w22, 6                     // next column
     add     w21, w21, 1
     b       array_display_values
 
 array_display_footer:
-    // Print size info
     mov     w0, 9
     mov     w1, 10
     bl      ansi_move_cursor
-    adrp    x0, label_size
-    add     x0, x0, :lo12:label_size
+    ldr     x0, =label_size
     mov     w1, w19
     mov     w2, array_max_size
     bl      printf
@@ -550,73 +448,57 @@ array_display_footer:
     b       array_display_done
 
 array_display_empty:
-    // Position cursor for error message
     mov     w0, 10
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_empty
-    add     x0, x0, :lo12:msg_empty
+    ldr     x0, =msg_empty
     bl      printf
     bl      print_newline
 
 array_display_done:
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 48
+    ldp     fp, lr, [sp], 48
     ret
 
-    .section .rodata
+.section .rodata
 .Lindex_fmt: .string "%2d    "
 .Lvalue_fmt: .string "%4d  "
-    .text
+.text
 
-// ============================================================================
-// FUNCTION: array_get_interactive
-// Interactive get element operation
-// Parameters: none
-// Returns: none
-// ============================================================================
+// array_get_interactive - prompt for an index, print the value there
     .global array_get_interactive
 array_get_interactive:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
 
-    // Load array count
-    adrp    x19, array_count
-    add     x19, x19, :lo12:array_count
-    ldr     w19, [x19]
+    ldr     x19, =array_count
+    ldr     w19, [x19]                      // w19 = count
 
     cmp     w19, 0
     b.le    array_get_empty
 
     bl      ansi_clear_screen
 
-    // Prompt for index
-    adrp    x0, prompt_index
-    add     x0, x0, :lo12:prompt_index
-    sub     w1, w19, 1
+    ldr     x0, =prompt_index
+    sub     w1, w19, 1                      // highest valid index
     bl      printf
 
     mov     w0, 0
     sub     w1, w19, 1
     bl      read_int_range
-    mov     w20, w0                          // Save index
+    mov     w20, w0                         // w20 = index
 
-    // Get value
-    adrp    x0, array_data
-    add     x0, x0, :lo12:array_data
-    ldr     w21, [x0, w20, SXTW 2]
+    ldr     x0, =array_data
+    ldr     w21, [x0, w20, SXTW 2]          // w21 = value
 
-    // Position cursor for result message
-    mov     w0, 22
+    mov     w0, 22                          // status line
     mov     w1, 1
     bl      ansi_move_cursor
 
-    // Print result
-    adrp    x0, msg_value_at
-    add     x0, x0, :lo12:msg_value_at
+    ldr     x0, =msg_value_at
     mov     w2, w21
     mov     w1, w20
     bl      printf
@@ -625,78 +507,59 @@ array_get_interactive:
     b       array_get_done
 
 array_get_empty:
-    // Position cursor for error message
-    mov     w0, 22
+    mov     w0, 22                          // status line
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_empty
-    add     x0, x0, :lo12:msg_empty
+    ldr     x0, =msg_empty
     bl      printf
     bl      print_newline
 
 array_get_done:
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// FUNCTION: array_set_interactive
-// Interactive set element operation
-// Parameters: none
-// Returns: none
-// ============================================================================
+// array_set_interactive - prompt for an index and a new value, store it
     .global array_set_interactive
 array_set_interactive:
-    stp     x29, x30, [sp, -32]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
 
-    // Load array count
-    adrp    x19, array_count
-    add     x19, x19, :lo12:array_count
-    ldr     w19, [x19]
+    ldr     x19, =array_count
+    ldr     w19, [x19]                      // w19 = count
 
     cmp     w19, 0
     b.le    array_set_empty
 
     bl      ansi_clear_screen
 
-    // Prompt for index
-    adrp    x0, prompt_index
-    add     x0, x0, :lo12:prompt_index
-    sub     w1, w19, 1
+    ldr     x0, =prompt_index
+    sub     w1, w19, 1                      // highest valid index
     bl      printf
 
     mov     w0, 0
     sub     w1, w19, 1
     bl      read_int_range
-    mov     w20, w0                          // Save index
+    mov     w20, w0                         // w20 = index
 
-    // Prompt for new value
-    adrp    x0, prompt_new_value
-    add     x0, x0, :lo12:prompt_new_value
+    ldr     x0, =prompt_new_value
     bl      printf
 
     bl      read_int
-    mov     w21, w0                          // Save new value
+    mov     w21, w0                         // w21 = new value
 
-    // Set value
-    adrp    x22, array_data
-    add     x22, x22, :lo12:array_data
+    ldr     x22, =array_data
     str     w21, [x22, w20, SXTW 2]
 
-    // Display updated array
     bl      array_display
 
-    // Position cursor for confirmation message
-    mov     w0, 15
+    mov     w0, 15                          // status line below the box
     mov     w1, 1
     bl      ansi_move_cursor
 
-    // Print confirmation
-    adrp    x0, msg_updated
-    add     x0, x0, :lo12:msg_updated
+    ldr     x0, =msg_updated
     mov     w1, w20
     mov     w2, w21
     bl      printf
@@ -705,86 +568,67 @@ array_set_interactive:
     b       array_set_done
 
 array_set_empty:
-    // Position cursor for error message
-    mov     w0, 22
+    mov     w0, 22                          // status line
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, msg_empty
-    add     x0, x0, :lo12:msg_empty
+    ldr     x0, =msg_empty
     bl      printf
     bl      print_newline
 
 array_set_done:
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 32
+    ldp     fp, lr, [sp], 32
     ret
 
-// ============================================================================
-// FUNCTION: array_swap_interactive
-// Interactive swap operation
-// Parameters: none
-// Returns: none
-// ============================================================================
+// array_swap_interactive - prompt for two indices and swap their values
     .global array_swap_interactive
 array_swap_interactive:
-    stp     x29, x30, [sp, -48]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -48]!
+    mov     fp, sp
     stp     x19, x20, [sp, 16]
     stp     x21, x22, [sp, 32]
 
-    // Load array count
-    adrp    x19, array_count
-    add     x19, x19, :lo12:array_count
-    ldr     w19, [x19]
+    ldr     x19, =array_count
+    ldr     w19, [x19]                      // w19 = count
 
     cmp     w19, 2
     b.lt    array_swap_too_small
 
     bl      ansi_clear_screen
 
-    // Get first index
-    adrp    x0, prompt_index1
-    add     x0, x0, :lo12:prompt_index1
+    ldr     x0, =prompt_index1
+    sub     w1, w19, 1                      // highest valid index
+    bl      printf
+
+    mov     w0, 0
+    sub     w1, w19, 1
+    bl      read_int_range
+    mov     w20, w0                         // w20 = first index
+
+    ldr     x0, =prompt_index2
     sub     w1, w19, 1
     bl      printf
 
     mov     w0, 0
     sub     w1, w19, 1
     bl      read_int_range
-    mov     w20, w0                          // Save index1
+    mov     w21, w0                         // w21 = second index
 
-    // Get second index
-    adrp    x0, prompt_index2
-    add     x0, x0, :lo12:prompt_index2
-    sub     w1, w19, 1
-    bl      printf
+    ldr     x22, =array_data
 
-    mov     w0, 0
-    sub     w1, w19, 1
-    bl      read_int_range
-    mov     w21, w0                          // Save index2
+    ldr     w23, [x22, w20, SXTW 2]         // temp = arr[i]
+    ldr     w24, [x22, w21, SXTW 2]         // arr[j]
+    str     w24, [x22, w20, SXTW 2]         // arr[i] = arr[j]
+    str     w23, [x22, w21, SXTW 2]         // arr[j] = temp
 
-    // Perform swap
-    adrp    x22, array_data
-    add     x22, x22, :lo12:array_data
-
-    ldr     w23, [x22, w20, SXTW 2]          // temp = arr[i]
-    ldr     w24, [x22, w21, SXTW 2]          // arr[j]
-    str     w24, [x22, w20, SXTW 2]          // arr[i] = arr[j]
-    str     w23, [x22, w21, SXTW 2]          // arr[j] = temp
-
-    // Display updated array
     bl      array_display
 
-    // Position cursor for confirmation message
-    mov     w0, 15
+    mov     w0, 15                          // status line below the box
     mov     w1, 1
     bl      ansi_move_cursor
 
-    // Print confirmation
-    adrp    x0, msg_swapped
-    add     x0, x0, :lo12:msg_swapped
+    ldr     x0, =msg_swapped
     mov     w1, w20
     mov     w2, w21
     bl      printf
@@ -793,47 +637,37 @@ array_swap_interactive:
     b       array_swap_done
 
 array_swap_too_small:
-    // Position cursor for error message
-    mov     w0, 22
+    mov     w0, 22                          // status line
     mov     w1, 1
     bl      ansi_move_cursor
 
-    adrp    x0, .Lswap_err
-    add     x0, x0, :lo12:.Lswap_err
+    ldr     x0, =.Lswap_err
     bl      printf
     bl      print_newline
 
 array_swap_done:
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     x29, x30, [sp], 48
+    ldp     fp, lr, [sp], 48
     ret
 
-    .section .rodata
+.section .rodata
 .Lswap_err: .string "\x1b[33mNeed at least 2 elements to swap!\x1b[0m"
-    .text
+.text
 
-// ============================================================================
-// FUNCTION: array_clear
-// Clears the array (sets count to 0)
-// Parameters: none
-// Returns: none
-// ============================================================================
+// array_clear - drop every element and any highlight
     .global array_clear
 array_clear:
-    stp     x29, x30, [sp, -16]!
-    mov     x29, sp
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
 
-    adrp    x0, array_count
-    add     x0, x0, :lo12:array_count
+    ldr     x0, =array_count
     mov     w1, 0
     str     w1, [x0]
 
-    // Clear highlight
-    adrp    x0, highlight_index
-    add     x0, x0, :lo12:highlight_index
-    mov     w1, -1
+    ldr     x0, =highlight_index
+    mov     w1, -1                          // -1 = no highlight
     str     w1, [x0]
 
-    ldp     x29, x30, [sp], 16
+    ldp     fp, lr, [sp], 16
     ret
