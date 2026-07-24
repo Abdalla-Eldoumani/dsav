@@ -1,117 +1,61 @@
 # Data Structures & Algorithms Visualizer - ARMv8 Assembly
 
-Terminal-based visualizer for data structures and algorithms, written in pure ARMv8 AArch64 assembly.
+Terminal visualizer for the classic data structures and algorithms, written
+in AArch64 assembly. Animations are drawn with ANSI escape codes; menus read
+plain numeric input.
 
-## Features
+## Data structures
 
-### Data Structures
-- **Array** - Index-based access with visual highlighting and table display
-- **Stack** - LIFO structure, vertical display with top indicator
-- **Queue** - Circular FIFO, horizontal display with front/rear pointers
-- **Linked List** - Dynamic nodes with malloc/free and **animated search traversal**
-  - Search highlights each node as it traverses (similar to BST search)
-- **Binary Search Tree** - Insert, delete, **animated search**, traversals (in/pre/post/level-order)
-  - ASCII tree display option
-  - Search highlights path through tree
-  - Level-order traversal shows breadth-first node visiting
-- **Red-Black Tree** - Self-balancing BST with insert, delete, search, and inorder traversal
-  - Colored node visualization (red/black backgrounds)
-  - Animated insertion with fixup (all 3 cases: recolor, triangle, line rotations)
-  - Animated deletion with fixup (all 4 cases)
-  - Property verification display (5 RB invariants)
-  - Automatic rebalancing after insertions and deletions
+- Array: init, set, get, swap, clear, with index highlighting
+- Stack: push, pop, peek, clear (8 slots, drawn vertically with a top marker)
+- Queue: enqueue, dequeue, peek, clear (8 slots, circular, front/rear arrows)
+- Linked list: insert front/back, delete, animated search, malloc/free nodes
+- Binary search tree: insert, delete, animated search, all four traversals
+- Red-black tree: insert, delete, search with animated fixups, colored
+  nodes, and a property display
 
-### Algorithms
-**Sorting:**
-- **Bubble Sort** - Shows each comparison and swap
-- **Selection Sort** - Highlights minimum search process
-- **Insertion Sort** - Displays shifting elements step-by-step
-- **Merge Sort** - Visualizes division, comparison, and merging
-- **Quick Sort** - Shows pivot comparisons and partitioning
+## Algorithms
 
-All sorting algorithms support user-configurable animation speed.
-
-**Searching:**
-- **Linear Search** - Sequential scanning with element highlighting
-- **Binary Search** - Shows low/mid/high pointers with smart sorted array detection
-  - Automatically checks if array is sorted
-  - Offers to sort array if needed before searching
-
-Both search algorithms support user-configurable animation speed and table-style array display.
-
-### Display
-- Colored ANSI terminal output
-- Step-by-step animations with detailed comparisons
-- Interactive menu with input validation
-- **User-configurable animation speed** (100-2500ms)
-  - Adjustable before each sort or search operation
-  - Allows fast overview or slow step-by-step learning
-
-## Requirements
-
-- ARM64 processor (or ARM cross-compiler like `aarch64-linux-gnu-gcc`)
-- Linux
-- gcc (for linking with C library)
-- m4 (macro preprocessor)
+- Sorting: bubble, selection, insertion, merge, quick - every compare and
+  swap is drawn
+- Searching: linear and binary with low/mid/high markers; binary offers to
+  sort an unsorted array first
+- Animation speed is adjustable per run (100-2500 ms)
 
 ## Building
 
-```bash
-make          # Build project
-make clean    # Remove generated files
-make run      # Build and run
-make both     # Clean, build, run, then clean again
-```
+Needs Linux, gcc targeting AArch64, and m4.
 
-## Running
+    make          # build
+    make run      # build and run
+    make clean
 
-```bash
-./dsav
-```
+The Makefile's `CC` points at a local wrapper; on a stock toolchain override
+it, e.g. `make CC=gcc` on an ARM64 machine. On x86, cross-compile and run
+under qemu:
 
-Use number keys to navigate menus.
+    for f in *.asm; do m4 "$f" > "${f%.asm}.s"; done
+    aarch64-linux-gnu-gcc -static *.s -o dsav
+    qemu-aarch64 ./dsav
 
-## File Structure
+## Layout
 
-```
-dsav-assembly/
-├── main.asm              # Entry point and menu
-├── macros.m4             # Shared macros
-├── ansi.asm              # Terminal colors and cursor
-├── display.asm           # Box drawing and text
-├── utils.asm             # Delay, input, random numbers
-├── array_viz.asm         # Array operations
-├── stack_viz.asm         # Stack with accessor functions
-├── queue_viz.asm         # Queue with accessor functions
-├── linkedlist_viz.asm    # Linked list with malloc
-├── bst_viz.asm           # Binary search tree
-├── rbt_viz.asm           # Red-black tree
-├── sort_viz.asm          # Sorting algorithms
-├── search_viz.asm        # Search algorithms
-└── Makefile              # Build configuration
-```
+    main.asm              menu loop and dispatch
+    ansi.asm              colors and cursor control
+    display.asm           boxes and centered text
+    utils.asm             input, delays, random numbers
+    array_viz.asm         one module per structure or algorithm family
+    stack_viz.asm
+    queue_viz.asm
+    linkedlist_viz.asm
+    bst_viz.asm
+    rbt_viz.asm
+    sort_viz.asm
+    search_viz.asm
 
-## Technical Details
+Each .asm file is preprocessed with m4 (register aliases like fp and lr are
+m4 defines), assembled with gcc, and linked against libc. Registers follow
+AAPCS64 and the stack stays 16-byte aligned.
 
-- **Calling Convention:** AArch64 AAPCS64
-- **Stack:** 16-byte aligned
-- **Registers:** x19-x28 for local variables (callee-saved)
-- **C Functions:** printf, scanf, malloc, free, usleep
-
-## C++ Interface Functions
-
-Stack and queue modules include accessor functions for C++ integration:
-- `stack_get_data()` - Returns pointer to stack array
-- `stack_get_top()` - Returns current top index
-- `queue_get_data()` - Returns pointer to queue array
-- `queue_get_front()` - Returns front index
-- `queue_get_rear()` - Returns rear index
-- `queue_get_count()` - Returns element count
-
-These let C++ code read assembly data structure state for visualization.
-
-## Limits
-
-- Array/Stack/Queue: 8-10 elements (for screen space)
-- Linked List/BST: No limit (uses malloc)
-- All modules maintain independent state
+The stack and queue modules export small accessors (stack_get_data,
+queue_get_front, ...) that the C++ asm-linked build reads.
