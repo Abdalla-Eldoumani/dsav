@@ -5,7 +5,7 @@
 define(fp, x29)
 define(lr, x30)
 
-.data
+    .data
     .balign 8
 
 // node field offsets and size
@@ -79,7 +79,7 @@ color_reset:        .string "\x1b[0m"
 
 rb_visual_delay:    .word 600
 
-.text
+    .text
     .balign 4
 
 // rb_init_nil() - allocate the shared black nil sentinel (safe to call again)
@@ -1997,7 +1997,7 @@ rb_display_menu:
     ret
 
 // format strings
-.data
+    .data
 .Lfmt_int:              .string "%d "
 .Lnode_fmt:             .string "%02d"
 .Linorder_label:        .string "Inorder: "
