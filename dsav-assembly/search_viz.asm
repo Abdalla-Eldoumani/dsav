@@ -5,7 +5,7 @@
 define(fp, x29)
 define(lr, x30)
 
-.data
+    .data
     .balign 8
 
 // search array storage, separate from the main array
@@ -78,12 +78,12 @@ int_fmt:            .string "%d"
 scan_fmt:           .string "%d"
 char_fmt:           .string "%c"
 
-.text
+    .text
     .balign 4
 
     .section .rodata
 .Lclear_line:       .string "\x1b[2K"       // clear the whole line
-.text
+    .text
 
 // search_menu() - search module menu, loops until back is chosen
     .global search_menu
