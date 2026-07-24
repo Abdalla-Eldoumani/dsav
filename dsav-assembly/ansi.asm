@@ -4,7 +4,7 @@
 define(fp, x29)
 define(lr, x30)
 
-.data
+    .data
     .balign 8
 
 // screen control
@@ -60,7 +60,7 @@ seq_bg_white:           .string "\x1b[47m"
 fmt_position:           .string "\x1b[%d;%dH"
 fmt_color:              .string "\x1b[%dm"
 
-.text
+    .text
     .balign 4
 
 // ansi_clear_screen() - clear everything and home the cursor
