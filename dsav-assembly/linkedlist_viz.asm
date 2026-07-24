@@ -4,7 +4,7 @@
 define(fp, x29)
 define(lr, x30)
 
-.data
+    .data
     .balign 8
 
 // node layout: [data: 8 bytes][next: 8 bytes]
@@ -47,7 +47,7 @@ label_nodes:        .string "Nodes: %d"
 highlight_color:    .string "\x1b[43;30m"       // yellow background, black text
 color_reset:        .string "\x1b[0m"
 
-.text
+    .text
     .balign 4
 
 // linkedlist_menu() - dispatch loop for the linked list module
@@ -869,13 +869,13 @@ list_display_done:
     ldp     fp, lr, [sp], 48
     ret
 
-.section .rodata
+    .section .rodata
 .Larrow_down:   .string "↓"
 .Larrow_right:  .string "──>"
 .Lnode_fmt:     .string "[%3ld]"
 .Lmsg_press_enter: .string "\x1b[33mPress Enter to start searching...\x1b[0m"
 .Lmsg_checking: .string "Checking node value %ld at index %d..."
-.text
+    .text
 
 // list_display_with_highlight(x20 = node to highlight)
 // same drawing as list_display, with one node on the highlight color
