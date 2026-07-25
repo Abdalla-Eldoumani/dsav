@@ -71,6 +71,14 @@ search_delay:       .word 220               // ms one compare holds
 search_target:      .word 0
 search_probes:      .word 0                 // compares this run has made
 search_active:      .word 0                 // is a run under way?
+search_ready:       .word 0                 // sample array laid in yet?
+
+// What a first visit finds already loaded. The values ascend with uneven
+// gaps, and that is the point: a search for 67 costs interpolation one
+// guess and binary four halvings, which is the lesson the arithmetic line
+// is there to show.
+    .balign 4
+search_seed:        .word 4, 11, 19, 28, 35, 46, 67, 73, 81, 94
 
 // One byte per cell for what it is and what is pointing at it. Every run
 // starts by clearing both, so a marker from a previous algorithm can
@@ -183,7 +191,7 @@ search_word_sorted:  .string "sorted"
 search_word_plain:   .string "unsorted"
 search_word_empty:   .string "empty"
 
-search_msg_empty:    .string "the array is empty, so fill it or type your own values first"
+search_msg_empty:    .string "the array is empty, so fill it or type values first"
 
 search_say_ready:    .string "the array is ready and nothing has been read yet"
 search_say_sorted:   .string "the array was out of order, so it was sorted before the run"
@@ -198,10 +206,10 @@ search_say_edge:     .string "the block ends at a[%d] = %d; is the target %d pas
 search_say_skip:     .string "a[%d] = %d is still below %d, so the whole block is skipped"
 search_say_land:     .string "%d cannot sit past a[%d], so walk this block from index %d"
 search_say_walk:     .string "walking the block: a[%d] = %d against the target %d"
-search_say_past:     .string "a[%d] = %d has passed %d, and a sorted array cannot hide it further on"
+search_say_past:     .string "a[%d] = %d is past %d, and a sorted array only climbs from here"
 search_say_guess:    .string "the guess landed on a[%d] = %d, against the target %d"
 search_say_outside:  .string "%d is outside the window values %d to %d, so no guess can reach it"
-search_say_typing:   .string "a[%d] is waiting for a value"
+search_say_typing:   .string "a[%d] is waiting for a value, 0 to 999"
 search_say_stored:   .string "%d values stored, so a search for any of them is a guaranteed hit"
 search_say_random:   .string "%d random values, so a hit is luck; type your own to be certain"
 search_say_inorder:  .string "%d values in order: binary, jump and interpolation can all run"
@@ -882,15 +890,17 @@ search_notice:
     ldr     x0, =search_foot_menu
     bl      ui_footer
 
+    // 60 wide from column 10, so the wall stands at column 69 and the
+    // longest message here stops well short of it
     mov     w0, 10
-    mov     w1, 14
-    mov     w2, 52
+    mov     w1, 10
+    mov     w2, 60
     mov     w3, 5
     ldr     x4, =search_panel_note
     bl      ui_panel
 
     mov     w0, 12
-    mov     w1, 17
+    mov     w1, 13
     mov     w2, w20
     mov     x3, x19
     bl      ui_text
@@ -1020,28 +1030,30 @@ search_ask:
     ldr     x0, =search_foot_pick
     bl      ui_footer
 
+    // the speed question is 50 characters, so the panel is sized to hold
+    // it with room to spare rather than the other way round
     mov     w0, 8
-    mov     w1, 14
-    mov     w2, 52
+    mov     w1, 10
+    mov     w2, 60
     mov     w3, 9
     ldr     x4, =search_panel_set
     bl      ui_panel
 
     mov     w0, 10
-    mov     w1, 17
+    mov     w1, 13
     mov     w2, search_role_text
     mov     x3, x19
     bl      ui_text
 
     mov     w0, 12
-    mov     w1, 17
+    mov     w1, 13
     mov     w2, search_role_dim
     mov     x3, x20
     bl      ui_text
 
     bl      ansi_show_cursor
     mov     w0, 14
-    mov     w1, 17
+    mov     w1, 13
     mov     w2, search_role_text
     ldr     x3, =search_lbl_value
     bl      ui_text
@@ -1071,6 +1083,37 @@ search_ask:
     ldp     x21, x22, [sp, 32]
     ldp     x19, x20, [sp, 16]
     ldp     fp, lr, [sp], 80
+    ret
+
+// search_seed_array() - lay in the sample values, so the first search a
+// student picks has something to look for
+search_seed_array:
+    stp     fp, lr, [sp, -48]!
+    mov     fp, sp
+    stp     x19, x20, [sp, 16]
+    str     x21, [sp, 32]
+
+    ldr     x19, =search_seed
+    ldr     x20, =search_array
+    mov     w21, 0
+
+.Lsearch_seed_loop:
+    cmp     w21, search_max
+    b.ge    .Lsearch_seed_done
+    ldr     w0, [x19, w21, sxtw 2]
+    str     w0, [x20, w21, sxtw 2]
+    add     w21, w21, 1
+    b       .Lsearch_seed_loop
+
+.Lsearch_seed_done:
+    ldr     x0, =search_size
+    mov     w1, search_max
+    str     w1, [x0]
+    bl      search_reset
+
+    ldr     x21, [sp, 32]
+    ldp     x19, x20, [sp, 16]
+    ldp     fp, lr, [sp], 48
     ret
 
 // search_fill_random() - the quick way to get an array, and the reason
@@ -1197,6 +1240,15 @@ search_type_values:
     bl      ansi_hide_cursor
     cbz     w23, .Lsearch_type_short
 
+    cmp     w22, 0                          // a cell is three columns wide, so
+    b.ge    .Lsearch_type_cap               // the value has to stay inside it
+    mov     w22, 0
+.Lsearch_type_cap:
+    cmp     w22, 999
+    b.le    .Lsearch_type_store
+    mov     w22, 999
+
+.Lsearch_type_store:
     str     w22, [x21, w20, sxtw 2]
     mov     w0, w20
     mov     w1, search_st_live
@@ -2307,6 +2359,14 @@ search_menu:
     stp     fp, lr, [sp, -32]!
     mov     fp, sp
     str     x19, [sp, 16]
+
+    // the first visit finds the sample array already loaded
+    ldr     x0, =search_ready
+    ldr     w1, [x0]
+    cbnz    w1, .Lsearch_menu_loop
+    mov     w1, 1
+    str     w1, [x0]
+    bl      search_seed_array
 
 .Lsearch_menu_loop:
     bl      search_menu_draw
