@@ -1446,9 +1446,9 @@ rb_chip:
     mov     w21, w2
 
     ldr     x0, =rb_cell
-    ldr     x1, =rb_fmt_cell
-    mov     w2, w3
-    bl      sprintf
+    mov     w1, w3
+    mov     w2, 2                           // the cell is two columns wide
+    bl      ui_num
 
     mov     w0, w19
     mov     w1, w20
@@ -1846,6 +1846,7 @@ rb_order_add:
     stp     fp, lr, [sp, -48]!
     mov     fp, sp
     stp     x19, x20, [sp, 16]
+    str     x21, [sp, 32]
 
     mov     w19, w0
 
@@ -1855,10 +1856,20 @@ rb_order_add:
     b.ge    rb_order_show
 
     ldr     x1, =rb_order
-    add     x0, x1, w0, sxtw
-    ldr     x1, =rb_fmt_order
-    mov     w2, w19
-    bl      sprintf                         // answers the characters written
+    sxtw    x0, w0
+    add     x21, x1, x0                     // where this value lands
+
+    mov     x0, x21
+    mov     w1, w19
+    mov     w2, 0                           // the strip spaces itself
+    bl      ui_num
+
+    sxtw    x2, w0
+    add     x1, x21, x2
+    mov     w2, ' '
+    strb    w2, [x1], 1
+    strb    wzr, [x1]
+    add     w0, w0, 1                       // the separator counts too
 
     ldr     w1, [x20]
     add     w1, w1, w0
@@ -1871,6 +1882,7 @@ rb_order_show:
     ldr     x3, =rb_order
     bl      ui_text
 
+    ldr     x21, [sp, 32]
     ldp     x19, x20, [sp, 16]
     ldp     fp, lr, [sp], 48
     ret
