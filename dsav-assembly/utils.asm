@@ -138,7 +138,7 @@ read_int_clear_message:
 // read_int_range(w0 = min, w1 = max) -> w0 = value in range
 // reprompts in place until a number in [min, max] is entered; the
 // complaint sits on the line under the prompt and stays put. End of
-// input answers `min`, which is the back/exit choice on every menu, so
+// input answers min, which is the back/exit choice on every menu, so
 // a closed stdin walks the program out instead of spinning on a prompt
 // nobody can answer.
     .global read_int_range
