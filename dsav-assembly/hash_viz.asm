@@ -461,7 +461,8 @@ hash_role_rest:
 // hash_state_of(w0 = slot) -> w0 = free, used or tombstoned
 hash_state_of:
     ldr     x1, =hash_state
-    add     x1, x1, w0, sxtw
+    sxtw    x0, w0
+    add     x1, x1, x0
     ldrb    w0, [x1]
     ret
 
@@ -479,7 +480,8 @@ hash_find:
 hash_find_loop:
     cmp     w5, hash_buckets
     b.ge    hash_find_miss
-    add     x7, x2, w4, sxtw
+    sxtw    x4, w4
+    add     x7, x2, x4
     ldrb    w6, [x7]
     cmp     w6, HASH_FREE
     b.eq    hash_find_miss                  // an empty slot ends every path
@@ -1101,7 +1103,8 @@ hash_insert_land:
     ldr     x24, =hash_keys
     str     w19, [x24, w20, sxtw 2]
     ldr     x24, =hash_state
-    add     x24, x24, w20, sxtw
+    sxtw    x20, w20
+    add     x24, x24, x20
     mov     w0, HASH_USED
     strb    w0, [x24]
 
@@ -1397,7 +1400,8 @@ hash_delete_interactive:
     bl      hash_pause
 
     ldr     x21, =hash_state
-    add     x21, x21, w20, sxtw
+    sxtw    x20, w20
+    add     x21, x21, x20
     mov     w0, HASH_TOMB
     strb    w0, [x21]
 
@@ -1518,7 +1522,8 @@ hash_clear_interactive:
 hash_clear_loop:
     cmp     w19, hash_buckets
     b.ge    hash_clear_counts
-    add     x1, x0, w19, sxtw
+    sxtw    x19, w19
+    add     x1, x0, x19
     strb    wzr, [x1]
     add     w19, w19, 1
     b       hash_clear_loop
