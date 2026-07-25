@@ -309,7 +309,8 @@ graph_note_n:
 // graph_note(x0 = caption, w1 = vertex) - for captions that carry a letter
 graph_note:
     ldr     x2, =graph_labels
-    add     x2, x2, w1, sxtw 1
+    sxtw    x1, w1
+    add     x2, x2, x1, lsl 1
     ldrb    w1, [x2]
     b       graph_note_n
 
@@ -482,7 +483,8 @@ graph_order_push:
     b.ge    graph_order_out
 
     ldr     x1, =graph_labels
-    add     x1, x1, w19, sxtw 1
+    sxtw    x19, w19
+    add     x1, x1, x19, lsl 1
     ldrb    w2, [x1]
     ldr     x1, =graph_order
     strb    w2, [x1, w0, sxtw]
@@ -705,7 +707,8 @@ graph_verts_loop:
     ldrb    w3, [x0, w19, sxtw]
     sub     w3, w3, 1                       // a chip is three cells wide
     ldr     x4, =graph_labels
-    add     x4, x4, w19, sxtw 1
+    sxtw    x19, w19
+    add     x4, x4, x19, lsl 1
 
     mov     w0, w2
     mov     w1, w3
@@ -805,7 +808,8 @@ graph_front_row_chip:
     mov     w1, 56
     mov     w2, graph_role_warn
     ldr     x3, =graph_labels
-    add     x3, x3, w25, sxtw 1
+    sxtw    x25, w25
+    add     x3, x3, x25, lsl 1
     bl      ui_badge
 
     add     w23, w23, 1
@@ -888,7 +892,8 @@ graph_front_c_member:
     mov     w1, w24
     mov     w2, w23
     ldr     x3, =graph_labels
-    add     x3, x3, w21, sxtw 1
+    sxtw    x21, w21
+    add     x3, x3, x21, lsl 1
     bl      ui_text
     add     w24, w24, 2
 graph_front_c_member_step:
@@ -1652,7 +1657,8 @@ graph_menu_item:
     mov     w1, 19
     mov     w2, graph_role_key
     ldr     x3, =graph_digits
-    add     x3, x3, w19, sxtw 1
+    sxtw    x19, w19
+    add     x3, x3, x19, lsl 1
     bl      ui_badge
 
     mov     w0, w20
