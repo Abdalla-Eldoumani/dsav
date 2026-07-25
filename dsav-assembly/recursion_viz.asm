@@ -685,7 +685,8 @@ rec_shell_peg:
     mov     w1, w20
     mov     w2, rec_role_dim
     ldr     x3, =rec_peg_lbl
-    add     x3, x3, w19, sxtw 1
+    sxtw    x19, w19
+    add     x3, x3, x19, lsl 1
     bl      ui_text
 
     add     w19, w19, 1
@@ -1050,7 +1051,8 @@ rec_menu_item:
     mov     w1, 19
     mov     w2, rec_role_key
     ldr     x3, =rec_digits
-    add     x3, x3, w19, sxtw 1
+    sxtw    x19, w19
+    add     x3, x3, x19, lsl 1
     bl      ui_badge
 
     mov     w0, w20
