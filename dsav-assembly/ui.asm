@@ -393,10 +393,9 @@ ui_panel_bottom:
 // A filled chip. Menu numbers and state markers use these.
     .global ui_badge
 ui_badge:
-    stp     fp, lr, [sp, -48]!
+    stp     fp, lr, [sp, -32]!
     mov     fp, sp
     stp     x19, x20, [sp, 16]
-    str     x21, [sp, 32]
 
     mov     w19, w2
     mov     x20, x3
@@ -412,15 +411,14 @@ ui_badge:
     bl      printf
     bl      th_off
 
-    ldr     x21, [sp, 32]
     ldp     x19, x20, [sp, 16]
-    ldp     fp, lr, [sp], 48
+    ldp     fp, lr, [sp], 32
     ret
 
 // ui_text(w0 = row, w1 = col, w2 = role, x3 = text)
     .global ui_text
 ui_text:
-    stp     fp, lr, [sp, -48]!
+    stp     fp, lr, [sp, -32]!
     mov     fp, sp
     stp     x19, x20, [sp, 16]
 
@@ -435,7 +433,7 @@ ui_text:
     bl      th_off
 
     ldp     x19, x20, [sp, 16]
-    ldp     fp, lr, [sp], 48
+    ldp     fp, lr, [sp], 32
     ret
 
 // ui_complexity(w0 = row, w1 = col, x2 = best, x3 = avg, x4 = worst,
@@ -544,9 +542,9 @@ ui_clear_body_done:
 // student typing wants to see where the characters land.
     .global ui_prompt
 ui_prompt:
-    stp     fp, lr, [sp, -48]!
+    stp     fp, lr, [sp, -32]!
     mov     fp, sp
-    stp     x19, x20, [sp, 16]
+    str     x19, [sp, 16]
 
     mov     x19, x2
 
@@ -560,6 +558,6 @@ ui_prompt:
     bl      th_fg
     bl      ansi_show_cursor
 
-    ldp     x19, x20, [sp, 16]
-    ldp     fp, lr, [sp], 48
+    ldr     x19, [sp, 16]
+    ldp     fp, lr, [sp], 32
     ret
