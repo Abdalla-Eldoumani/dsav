@@ -32,3 +32,6 @@ Thumbs.db
 *.log
 temp/
 commands.txt
+
+# Agent context files
+CLAUDE.md
