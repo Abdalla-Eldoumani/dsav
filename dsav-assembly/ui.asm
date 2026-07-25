@@ -99,6 +99,32 @@ ui_repeat_done:
     ldp     fp, lr, [sp], 32
     ret
 
+// ui_cols(x0 = string) -> w0 = how many columns the string occupies
+// strlen counts bytes, and every box glyph in this file is three of them.
+// Borders are drawn in columns, so anything measured against a border has
+// to be counted the same way: one column per byte that is not a UTF-8
+// continuation byte.
+    .global ui_cols
+ui_cols:
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
+
+    mov     x1, x0
+    mov     w0, 0
+
+ui_cols_loop:
+    ldrb    w2, [x1], 1
+    cbz     w2, ui_cols_done
+    and     w3, w2, 0xC0
+    cmp     w3, 0x80
+    b.eq    ui_cols_loop                    // trailing byte of the same glyph
+    add     w0, w0, 1
+    b       ui_cols_loop
+
+ui_cols_done:
+    ldp     fp, lr, [sp], 16
+    ret
+
 // ui_rule(w0 = row) - a full-width rule joined into the frame
     .global ui_rule
 ui_rule:
@@ -233,7 +259,7 @@ ui_tagline:
     str     x19, [sp, 16]
 
     ldr     x0, =ui_app_sub
-    bl      strlen
+    bl      ui_cols
     mov     w19, UI_WIDTH - 3
     sub     w19, w19, w0                    // right edge, inside the frame
 
@@ -321,7 +347,7 @@ ui_panel:
 
     // fill what the title left
     mov     x0, x23
-    bl      strlen
+    bl      ui_cols
     add     w24, w0, 5                      // corner + 2 rule + 2 spaces
     sub     w24, w21, w24
     sub     w24, w24, 1
