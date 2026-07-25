@@ -8,12 +8,19 @@ define(lr, x30)
 
 int_fmt:            .string "%d"
 press_enter_msg:    .string "\x1b[33mPress Enter to continue...\x1b[0m"
-// the complaint clears its own line first, so retries overwrite it in
-// place instead of stacking a new copy under the menu every time
-invalid_input_msg:  .string "\x1b[2K\x1b[31mInvalid input! Please try again.\x1b[0m"
+// The complaint always lands on one fixed line, centered under the menu
+// box, and clears that line first -- so retries overwrite it in place
+// instead of stacking copies down the screen. Row 24 is below every
+// MENU box; the modules that draw deeper (the stack cells, a tall tree,
+// the red-black property list) reach it, but those screens never prompt.
+invalid_input_msg:  .string "\x1b[24;25H\x1b[2K\x1b[31mInvalid input! Please try again.\x1b[0m"
+clear_msg_row:      .string "\x1b[24;1H\x1b[2K"
 input_prompt:       .string "> "
 save_input_pos:     .string "\x1b[s"        // remember where typing begins
-redo_input_pos:     .string "\x1b[u\x1b[0K" // jump back there and wipe the try
+// Back to the input spot, blanking the rejected entry with a bounded run
+// of spaces. Erase-to-end-of-line would take the menu box's right wall
+// with it.
+restore_input_pos:  .string "\x1b[u                \x1b[u"
 
 input_buffer:       .skip 64                // scratch space for user input
 
@@ -46,12 +53,13 @@ delay_us:
 
 // read_int() -> w0 = value, w1 = 1 on success, 0 on end of input
 // remembers where typing begins; a bad line is flushed, the complaint
-// lands on the line below, and the cursor comes back to the same spot,
-// so retries never scroll the menu away
+// lands on the fixed message row under the menu, and the cursor comes
+// back to the same spot, so retries never scroll the menu away
     .global read_int
 read_int:
     stp     fp, lr, [sp, -32]!
     mov     fp, sp
+    str     x19, [sp, 16]                   // w19 holds the value across calls
 
     ldr     x0, =save_input_pos
     bl      printf
@@ -65,8 +73,10 @@ read_int_retry:
     cmp     w0, 1                           // items converted
     b.ne    read_int_no_value
 
-    ldr     w0, [sp]
+    ldr     w19, [sp]                       // hold the value across the calls
     add     sp, sp, 16
+    bl      read_int_clear_message
+    mov     w0, w19
     mov     w1, 1
     b       read_int_done
 
@@ -76,23 +86,54 @@ read_int_no_value:
     b.lt    read_int_eof
 
     bl      clear_input_buffer              // flush the bad line
-    ldr     x0, =invalid_input_msg          // complaint on the line below
-    bl      printf
-    ldr     x0, =redo_input_pos             // back to the input spot
-    bl      printf
+    bl      read_int_complain
     b       read_int_retry
 
 read_int_eof:
+    bl      read_int_clear_message          // no mistake outlives the read
     mov     w0, 0
     mov     w1, 0
 
 read_int_done:
+    ldr     x19, [sp, 16]
     ldp     fp, lr, [sp], 32
+    ret
+
+// read_int_complain() - paint the complaint on the message row, then put
+// the cursor back where the student was typing
+    .global read_int_complain
+read_int_complain:
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
+
+    ldr     x0, =invalid_input_msg
+    bl      printf
+    ldr     x0, =restore_input_pos
+    bl      printf
+
+    ldp     fp, lr, [sp], 16
+    ret
+
+// read_int_clear_message() - wipe the message row once a good value
+// lands, so a stale complaint never outlives the mistake
+read_int_clear_message:
+    stp     fp, lr, [sp, -16]!
+    mov     fp, sp
+
+    ldr     x0, =clear_msg_row
+    bl      printf
+    ldr     x0, =restore_input_pos
+    bl      printf
+
+    ldp     fp, lr, [sp], 16
     ret
 
 // read_int_range(w0 = min, w1 = max) -> w0 = value in range
 // reprompts in place until a number in [min, max] is entered; the
-// complaint sits on the line under the prompt and stays put
+// complaint sits on the line under the prompt and stays put. End of
+// input answers `min`, which is the back/exit choice on every menu, so
+// a closed stdin walks the program out instead of spinning on a prompt
+// nobody can answer.
     .global read_int_range
 read_int_range:
     stp     fp, lr, [sp, -48]!
@@ -112,7 +153,7 @@ read_int_range_loop:
     mov     w22, w1                         // success flag
 
     cmp     w22, 0
-    b.eq    read_int_range_invalid
+    b.eq    read_int_range_eof              // stdin ended: take the exit
     cmp     w21, w19
     b.lt    read_int_range_invalid
     cmp     w21, w20
@@ -122,11 +163,11 @@ read_int_range_loop:
     b       read_int_range_done
 
 read_int_range_invalid:
-    ldr     x0, =invalid_input_msg          // complaint on the line below
-    bl      printf
-    ldr     x0, =redo_input_pos             // back to the input spot
-    bl      printf
+    bl      read_int_complain               // out of range reads the same
     b       read_int_range_loop
+
+read_int_range_eof:
+    mov     w0, w19                         // min = back / exit
 
 read_int_range_done:
     ldp     x21, x22, [sp, 32]
