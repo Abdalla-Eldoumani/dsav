@@ -2296,7 +2296,8 @@ search_menu_draw:
     mov     w1, 18
     mov     w2, search_role_key
     ldr     x3, =search_digits
-    add     x3, x3, w19, sxtw 1
+    sxtw    x19, w19
+    add     x3, x3, x19, lsl 1
     bl      ui_badge
 
     mov     w0, w20
