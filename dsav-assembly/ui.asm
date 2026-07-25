@@ -223,6 +223,30 @@ ui_screen_bars:
     ldp     fp, lr, [sp], 32
     ret
 
+// ui_tagline() - what the program is, set right on the title bar. Only
+// the home screen wears it; every other screen keeps the bar for its own
+// name.
+    .global ui_tagline
+ui_tagline:
+    stp     fp, lr, [sp, -32]!
+    mov     fp, sp
+    str     x19, [sp, 16]
+
+    ldr     x0, =ui_app_sub
+    bl      strlen
+    mov     w19, UI_WIDTH - 3
+    sub     w19, w19, w0                    // right edge, inside the frame
+
+    mov     w0, 2
+    mov     w1, w19
+    mov     w2, UI_ROLE_FAINT
+    ldr     x3, =ui_app_sub
+    bl      ui_text
+
+    ldr     x19, [sp, 16]
+    ldp     fp, lr, [sp], 32
+    ret
+
 // ui_footer(x0 = hint text) - the standing hint on row 22
     .global ui_footer
 ui_footer:
@@ -515,7 +539,9 @@ ui_clear_body_done:
     ret
 
 // ui_prompt(w0 = row, w1 = col, x2 = label) - a label plus the input
-// caret, positioned so utils.asm's reader picks up from here
+// caret, positioned so utils.asm's reader picks up from here. The cursor
+// comes back for this one moment: every other screen hides it, and a
+// student typing wants to see where the characters land.
     .global ui_prompt
 ui_prompt:
     stp     fp, lr, [sp, -48]!
@@ -532,6 +558,7 @@ ui_prompt:
     bl      th_off
     mov     w0, UI_ROLE_KEY
     bl      th_fg
+    bl      ansi_show_cursor
 
     ldp     x19, x20, [sp, 16]
     ldp     fp, lr, [sp], 48
