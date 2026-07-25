@@ -9,12 +9,14 @@ egui.
 
 ### Assembly (`dsav-assembly/`)
 
-Terminal visualizer in AArch64 assembly, animated with ANSI escape codes.
-Array, stack, queue, linked list, binary search tree, and red-black tree
-(animated insert/delete fixups); bubble, selection, insertion, merge, and
-quick sort; linear and binary search. Adjustable animation speed. Runs on
-ARM64 Linux, or any Linux with an AArch64 cross-compiler and qemu. It also
-runs in the browser as the multi-file example in the
+Terminal visualizer in AArch64 assembly, animated with ANSI escape codes on
+a fixed 80x24 canvas. Array, stack, queue, linked list, binary search tree,
+red-black tree (animated insert/delete fixups), heap, hash table, and graph;
+sorting and searching over one shared array; towers of hanoi with the call
+stack drawn beside the pegs. Every screen goes through one kernel, so the
+palette and the frame live in a single pair of files. Adjustable animation
+speed. Runs on ARM64 Linux, or any Linux with an AArch64 cross-compiler and
+qemu. It also runs in the browser as the multi-file example in the
 [aarch64 playground](https://github.com/Abdalla-Eldoumani/aarch64-playground).
 
 ### C++ (`dsav-cpp/`)
