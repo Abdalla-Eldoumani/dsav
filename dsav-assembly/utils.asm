@@ -11,6 +11,7 @@ define(lr, x30)
     .balign 8
 
 int_fmt:            .string "%d"
+newline_str:        .string "\n"
 press_enter_msg:    .string "press enter to continue"
 // The complaint always lands on one fixed line inside the frame, below
 // the body and above the footer, and the line is wiped before it is
@@ -259,15 +260,11 @@ print_newline:
     stp     fp, lr, [sp, -16]!
     mov     fp, sp
 
-    ldr     x0, =.Lnewline
+    ldr     x0, =newline_str
     bl      printf
 
     ldp     fp, lr, [sp], 16
     ret
-
-    .section .rodata
-.Lnewline: .string "\n"
-    .text
 
 // get_random(w0 = max) -> w0 = random value in [0, max)
     .global get_random
