@@ -504,9 +504,9 @@ list_chip:
     mov     w21, w2
 
     ldr     x0, =list_cell
-    ldr     x1, =list_fmt_cell
-    mov     w2, w3
-    bl      sprintf
+    mov     w1, w3
+    mov     w2, 2                           // the cell is two columns wide
+    bl      ui_num
 
     mov     w0, w19
     mov     w1, w20
